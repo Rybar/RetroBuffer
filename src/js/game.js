@@ -1,8 +1,8 @@
 import RetroBuffer from './core/RetroBuffer.js';
 import MusicPlayer from './musicplayer.js';
 import { playSound, Key, inView, timestamp, lerp, clamp } from './core/utils.js';
-import Demos from './Demos.js';
-demos = new Demos();
+//import Demos from './Demos.js';
+//demos = new Demos();
 
 //sound assets
 import cellComplete from './sounds/cellComplete.js';
@@ -17,7 +17,7 @@ sounds = [];
 
 last = timestamp();
 now = 0,
-dt = 0;
+    dt = 0;
 
 w = 320;
 h = 180;
@@ -46,9 +46,9 @@ function gameInit() {
     window.playSound = playSound;
     gamebox = document.getElementById("game");
     gamebox.appendChild(r.c);
-    r.c.style = `height: ${h * 4}; width: ${w * 4}; margin: 30px`
-    //    gamebox.appendChild(r.debugCanvas);
-    //r.debugCanvas.style = 'margin: 30px'
+    r.c.style = `height: ${h * 5}; width: ${w * 5}; margin: 30px`
+        //    gamebox.appendChild(r.debugCanvas);
+        //r.debugCanvas.style = 'margin: 30px'
     initAudio();
     gameloop();
 }
@@ -95,14 +95,15 @@ function initAudio() {
     })
 }
 
-x = w/2; y = h/2;
-color = 0;
+x = w / 2;
+y = h / 2;
+color = 15;
 newX = Math.random() * w;
 newY = Math.random() * h;
-newColor = Math.random()*255;
-rad = 4;
-newRad = 4 + Math.random() * 20;
-speed = 0.03;
+newColor = 15 + Math.random() * 15;
+rad = 8;
+newRad = 8 + Math.random() * 20;
+speed = 0.05;
 target = 0;
 
 function updateGame(dt) {
@@ -112,12 +113,11 @@ function updateGame(dt) {
     y = lerp(y, newY, target);
     rad = lerp(rad, newRad, target);
     color = lerp(color, newColor, target);
-    if(Math.abs(newX - x) < 1) {
-        newX = clamp(newX + Math.random() * 100 - 50, -20, w+20);
-        newY = clamp(newY + Math.random() * 100 - 50, -20, h+20);
-        newColor = newColor + Math.random()*16 - 8;
-        newRad = 4 + Math.random() * 15;
-
+    if (Math.abs(newX - x) < 1) {
+        newX = clamp(newX + Math.random() * 100 - 50, -20, w + 20);
+        newY = clamp(newY + Math.random() * 100 - 50, -20, h + 20);
+        newColor = clamp(newColor + Math.random() * 4 - 2, 15, 255);
+        newRad = 8 + Math.random() * 20;
         target = 0;
 
     }
@@ -131,9 +131,16 @@ function drawGame() {
     r.clear(0, r.PAGE_1);
     r.clear(0, r.PAGE_2);
     r.renderTarget = r.SCREEN;
-
+    for (let i = 0; i < 300; i++) {
+        let x1 = Math.random() * w;
+        let y1 = Math.random() * h;
+        r.setColorBlend(clamp(r.pget(x1, y1, r.SCREEN) - 1, 0, 255) - 0.5);
+        r.fillCircle(x1, y1 - 3, 2);
+    }
+    r.setColorBlend(color - 0.5);
+    r.fillCircle(x - 1, y + 1, rad);
     r.setColorBlend(color);
-    r.fillCircle(x, y, newRad);
+    r.fillCircle(x, y, rad);
     r.render();
     //r.debugRender();
 }
