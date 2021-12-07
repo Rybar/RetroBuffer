@@ -1,0 +1,31 @@
+Finish refactoring demo bits out into Demos.js
+Moar Demos
+    2d camera
+    tilemap drawing
+    tilemap with color map
+    tile-based lighting
+    particles
+    palette-based additive/subtractive colors
+    spritesheet animation
+    -no added functions, simple how-to with time+modulus
+Palette todo:
+    tileset development
+    8-row brightness map
+    ramp presets
+    font:
+        more special characters and numbers
+
+
+Game Demos:
+    asteroids
+    dual-stick
+    dual-stick with tilemap
+    greeble port
+    zelda-like
+    port of tiny platformer
+    port of tiny fishing player
+
+
+
+
+

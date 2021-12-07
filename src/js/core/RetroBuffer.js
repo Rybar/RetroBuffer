@@ -120,7 +120,7 @@ RetroBuffer.prototype.setPen = function(color, color2, dither = 0) {
     this.pat = dither;
 }
 
-RetroBuffer.prototype.pset = function(x, y, color, color2 = 0) {
+RetroBuffer.prototype.pset = function(x, y, color = this.cursorColor, color2 = this.cursorColor2) {
     x = x | 0;
     y = y | 0;
     color = this.stencil ? this.pget(x, y, this.stencilSource) : (color | 0) % this.paletteSize;
@@ -139,7 +139,7 @@ RetroBuffer.prototype.pget = function(x, y, page = 0) {
     return this.ram[page + x + y * this.WIDTH];
 }
 
-RetroBuffer.prototype.line = function(x1, y1, x2, y2, color) {
+RetroBuffer.prototype.line = function(x1, y1, x2, y2, color=this.cursorColor) {
 
     x1 = x1 | 0,
         x2 = x2 | 0,
@@ -314,7 +314,7 @@ RetroBuffer.prototype.circle = function(xm, ym, r, color) {
     } while (x < 0);
 }
 
-RetroBuffer.prototype.fillCircle = function(xm, ym, r, color) {
+RetroBuffer.prototype.fillCircle = function(xm, ym, r, color=this.cursorColor) {
     xm = xm | 0;
     ym = ym | 0;
     r = r | 0;
@@ -467,7 +467,7 @@ RetroBuffer.prototype.render = function() {
         data is 32bit view of final screen buffer
         for each pixel on screen, we look up it's color and assign it
         */
-        if (i > 0) this.data[i] = this.colors[this.pal[this.ram[i]]];
+        if (i >= 0) this.data[i] = this.colors[this.pal[this.ram[i]]];
 
     }
 
@@ -602,5 +602,12 @@ RetroBuffer.prototype.getCharacter = function getCharacter(char) {
 RetroBuffer.prototype.fillRange = (start, end) => {
     return Array(end - start + 1).fill().map((item, index) => start + index);
 };
+
+RetroBuffer.prototype.setColorBlend = function(colorFloat) {
+    this.cursorColor = Math.floor(colorFloat);
+    this.cursorColor2 = Math.ceil(colorFloat);
+    this.pat = this.dither[ Math.round( (colorFloat % 1) * 15 )];
+    return {color1: this.cursorColor, color2: this.cursorColor2, pat: this.pat};
+}
 
 export default RetroBuffer;

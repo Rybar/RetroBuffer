@@ -86,3 +86,12 @@ export const Key = {
   }
 };
 
+export function timestamp() {
+  return window.performance && window.performance.now ? window.performance.now() : new Date().getTime();
+};
+
+export function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+

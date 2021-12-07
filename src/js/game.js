@@ -1,20 +1,29 @@
 import RetroBuffer from './core/RetroBuffer.js';
 import MusicPlayer from './musicplayer.js';
+import { playSound, Key, inView, timestamp, lerp, clamp } from './core/utils.js';
+import Demos from './Demos.js';
+demos = new Demos();
 
 //sound assets
 import cellComplete from './sounds/cellComplete.js';
 
-import { playSound, Key, choice, inView, lerp } from './core/utils.js';
-import Stats from './core/Stats.js';
+//stats = new Stats();
+//stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+//import Stats from './core/Stats.js';
 
 gameScale = 1;
 gameState = 1;
 sounds = [];
 
+last = timestamp();
+now = 0,
+dt = 0;
+
 w = 320;
 h = 180;
-stats = new Stats();
-stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+
+t = 0;
+
 document.body.style = "margin:0; background-color:black; overflow:hidden";
 
 const atlasURL = 'DATAURL:src/img/palette-aurora-256.webp';
@@ -23,8 +32,8 @@ atlasImage.src = atlasURL;
 
 atlasImage.onload = function() {
     let c = document.createElement('canvas');
-    c.width = 256;
-    c.height = 256;
+    c.width = atlasImage.width;
+    c.height = atlasImage.height;
     let ctx = c.getContext('2d');
     ctx.drawImage(this, 0, 0);
     atlas = new Uint32Array(ctx.getImageData(0, 0, this.width, this.height).data.buffer);
@@ -44,9 +53,8 @@ function gameInit() {
     gameloop();
 }
 
-document.body.appendChild( stats.dom );
+//document.body.appendChild( stats.dom );
 
-window.t = 1;
 
 function initAudio() {
     audioCtx = new AudioContext;
@@ -87,103 +95,51 @@ function initAudio() {
     })
 }
 
-function updateGame() {
-    t += 1;
+x = w/2; y = h/2;
+color = 0;
+newX = Math.random() * w;
+newY = Math.random() * h;
+newColor = Math.random()*255;
+rad = 4;
+newRad = 4 + Math.random() * 20;
+speed = 0.03;
+target = 0;
+
+function updateGame(dt) {
+    t += dt;
+    target += dt * speed;
+    x = lerp(x, newX, target);
+    y = lerp(y, newY, target);
+    rad = lerp(rad, newRad, target);
+    color = lerp(color, newColor, target);
+    if(Math.abs(newX - x) < 1) {
+        newX = clamp(newX + Math.random() * 100 - 50, -20, w+20);
+        newY = clamp(newY + Math.random() * 100 - 50, -20, h+20);
+        newColor = newColor + Math.random()*16 - 8;
+        newRad = 4 + Math.random() * 15;
+
+        target = 0;
+
+    }
     if (Key.justReleased(Key.a)) {
         playSound(sounds.cellComplete);
     }
 }
 
 function drawGame() {
-    r.renderTarget = r.SCREEN;
-    r.clear(121, r.SCREEN);
+    //r.clear(0, r.SCREEN);
     r.clear(0, r.PAGE_1);
     r.clear(0, r.PAGE_2);
-
-
-//diagonal moving rectangles
-    r.renderTarget = r.PAGE_1;
-    for (let i = 0; i < w + 40; i += 15) {
-        for (let j = -20; j < h + 40; j += 15) {
-            r.circle(-20 + (i + t + Math.sin(i/17)*22) % (w + 40), -20 + (j + t/2) % (h + 30), 10-Math.sin(i/100)*5, 120 + ((i+j)/90));
-        }
-    }
-
-//random pile of circles, no page clear
-    // r.renderTarget = r.PAGE_2;
-    // for (let i = 0; i < 40; i++) {
-    //     r.circle(Math.random() * w, Math.random() * h, Math.random() * 10, Math.random() * 10);
-    // }
-
-//wavy effect by sspr copying from page1 in 5px slices with scale offset
     r.renderTarget = r.SCREEN;
-    r.renderSource = r.PAGE_1;
-    for (let i = 0; i < w; i++) {
-        let
-            ymod = Math.sin((t + i) / 20) * 10;
-        //yscale = Math.sin( (t+i) / 10 ) * 0.5 + 1;
-        r.sspr(i, 0, 1, h, i, ymod / 2, 1, h + ymod);
-    }
 
-//tile drawing test
-    // for (let i = 0; i < 256; i++) {
-    //     r.fillRect(i, 0, 1, 4, i);
-    // }
-    // for (let i = 0; i < w; i += r.spriteTileset.tileSize.x) {
-    //     for (let j = 0; j < 64; j += r.spriteTileset.tileSize.y) {
-    //         r.palOffset = ((j / 8) * 32 + i / 8) % 256;
-    //         r.drawTile(Math.floor(j / 32), i, 100 + j, r.spriteTileset, 1, false, true);
-    //     }
-    // }
-
-//stencil drawing test -floating circle
-    // r.stencil = true;
-    // r.palOffset = (16 + t / 10) % 256;
-    // r.fillCircle(w / 2 + Math.sin(t / 100) * 100, h / 2 + Math.cos(t / 100) * 100, 30, 21);
-    // r.stencil = false;
-    // r.circle(w / 2 + Math.sin(t / 100) * 100, h / 2 + Math.cos(t / 100) * 100, 30, 21);
-    // r.palOffset = 0;
-
-//text drawing test
-    // [textstring, x, y, hspacing, vspacing, halign, valign, scale, color, offset, delay, frequency]
-    // r.renderTarget = r.SCREEN;
-    // let text = ["The Quick Brown Fox Jumped Over The Lazy Dog\nNOW IS THE TIME",
-    //   10, 40, 1,2, "left", "top", 1, 37, 0, 0, 0]
-
-    // r.text(text, 162);
-    
-//sspr from to same page test
-    // r.renderSource = r.SCREEN
-    // r.renderTarget = r.SCREEN
-    // r.sspr(100, 100, 64, 64, 100-10, 100-10, 66, 66);
-
-//tline test
-    r.renderSource = r.PAGE_3 
-    r.renderTarget = r.SCREEN
-    r.sspr(0, 0, w, 7, 0, 0, w, 15)
-    
-    for(let i = -60; i < w+60; i++) {
-      r.tline(i, 150, i+60, 70-Math.sin(i/15-t/30)*15 + Math.sin(i/3)*7 + Math.cos(i/7)*5,
-      90,0,100,0)
-
-      
-    }
-    for(let i = -60; i < w+60; i++) {
-
-      r.tline(i, 180, i+60, 120-Math.sin(i/8+t/110)*20 + Math.sin(i/5)*7 + Math.cos(i/13 + t/17)*5 + Math.cos(i/2)*4,
-      110,0,140,0)
-    }
-    
-    
-
+    r.setColorBlend(color);
+    r.fillCircle(x, y, newRad);
     r.render();
     //r.debugRender();
-
- 
 }
 
 function resetGame() {
-    window.t = 1;
+    window.t = 0;
 }
 
 
@@ -221,20 +177,22 @@ function pruneScreen(entitiesArray) {
 
 function gameloop() {
     if (1 == 1) {
-        stats.begin();
+        //stats.begin();
+        now = timestamp();
+        dt = Math.min(1, (now - last) / 1000);
         switch (gameState) {
             case 0:
                 break;
             case 1: //game
-                updateGame();
-                drawGame();
+                updateGame(dt);
+                drawGame(dt);
                 break;
             case 2:
-                titlescreen();
+                titlescreen(dt);
                 break;
         }
         Key.update();
-        stats.end();
+        //stats.end();
         requestAnimationFrame(gameloop);
     }
 }
