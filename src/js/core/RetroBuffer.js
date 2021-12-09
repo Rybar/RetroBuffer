@@ -1,14 +1,14 @@
 //todo: debug canvas. a 1 to 1 view of all pages
+import { inView } from '/js/core/utils.js'
 
-
-var RetroBuffer = function(width, height, atlas, pages) {
+var RetroBuffer = function(width, height, atlas, pages=5) {
 
         this.WIDTH = width;
         this.HEIGHT = height;
         this.PAGESIZE = this.WIDTH * this.HEIGHT;
         this.PAGES = pages;
         this.atlas = atlas;
-
+        //TODO:  dynamically set page consts based on number of buffer pages
         this.SCREEN = 0;
         this.PAGE_1 = this.PAGESIZE;
         this.PAGE_2 = this.PAGESIZE * 2;
@@ -23,7 +23,9 @@ var RetroBuffer = function(width, height, atlas, pages) {
         this.palOffset = 0;
         this.stencil = false;
         this.stencilSource = this.PAGE_2;
+        this.mapSource = this.PAGE_4;
         this.stencilOffset = 0;
+
         this.spriteTileset = {
             width: 32,
             height: 1,
@@ -31,6 +33,7 @@ var RetroBuffer = function(width, height, atlas, pages) {
             tileOrigin: { x: 0, y: 24 },
             tileSize: { x: 8, y: 8 },
         };
+
         this.fontTileset = {
             width: 51,
             height: 2,
@@ -38,16 +41,17 @@ var RetroBuffer = function(width, height, atlas, pages) {
             tileOrigin: { x: 0, y: 8 },
             tileSize: { x: 5, y: 8 },
         };
-        this.paletteSize = 255;
+
+        this.paletteSize = 255; //ram is Uint8, so this can't be higher than 255.
         this.tilesets = [this.spriteTileset, this.fontTileset];
 
         //colors is an array of 32bit values representing the palette. Taken from the top of the atlas.
-        this.colors = this.atlas.slice(0, 255);
+        this.colors = this.atlas.slice(0, this.paletteSize);
 
         //active palette. change values in this array for index-color-mapping
         this.pal = this.fillRange(0, 255);
         //default palette index
-        this.palDefault = this.fillRange(0, 256, 0);
+        this.palDefault = this.fillRange(0, this.paletteSize, 0);
 
 
         this.c = document.createElement('canvas');
@@ -399,7 +403,22 @@ RetroBuffer.prototype.drawTile = function drawTile(tile, x, y, tileset=this.spri
     this.sspr(drawX, drawY, tileset.tileSize.x, tileset.tileSize.y, x, y, tileset.tileSize.x*scale, tileset.tileSize.y*scale, flipx, flipy);
     this.renderSource = previousRenderSource;
 }
+RetroBuffer.prototype.drawMap = function(map) {
+    let tileWidth = this.spriteTileset.tileSize.x;
+    let tileHeight = this.spriteTileset.tileSize.y;
+    let left = Math.floor(view.x/tileWidth);
+    let right = left + Math.floor(w/tileWidth) + 1;
+    let top = Math.floor(view.y/tileHeight);
+    let bottom = top + Math.floor(h/tileHeight) + 1;
 
+    //this optimization doesn't play nice at the maps edges for scrolling camera past bounds. 
+    for(let i = left; i < right; i++){
+        for(let j = top; j < bottom; j++){
+            
+            this.drawTile(this.ram[this.mapSource + i * this.WIDTH + j], i*tileWidth-view.x, j*tileHeight-view.y)
+        }
+    }
+}
 
 RetroBuffer.prototype.triangle = function triangle(p1, p2, p3, color) {
     this.line(p1.x, p1.y, p2.x, p2.y, color);

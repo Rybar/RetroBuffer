@@ -1,8 +1,8 @@
 import RetroBuffer from './core/RetroBuffer.js';
 import MusicPlayer from './musicplayer.js';
 import { playSound, Key, inView, timestamp, lerp, clamp } from './core/utils.js';
-//import Demos from './Demos.js';
-//demos = new Demos();
+import Demos from './Demos.js';
+demos = new Demos();
 
 //sound assets
 import cellComplete from './sounds/cellComplete.js';
@@ -19,8 +19,18 @@ last = timestamp();
 now = 0,
     dt = 0;
 
-w = 320;
-h = 180;
+w = window.innerWidth/5| 0;
+h = window.innerHeight/5 | 0;
+
+view = {x: 0, y: 0}
+
+tileWidth = tileHeight = 8;
+
+window.map = {
+    width: 60,
+    height: 60,
+    data: []
+}
 
 t = 0;
 
@@ -37,7 +47,7 @@ atlasImage.onload = function() {
     let ctx = c.getContext('2d');
     ctx.drawImage(this, 0, 0);
     atlas = new Uint32Array(ctx.getImageData(0, 0, this.width, this.height).data.buffer);
-    window.r = new RetroBuffer(w, h, atlas, 4);
+    window.r = new RetroBuffer(w, h, atlas);
     r.atlasToRam(atlas, this.width, this.height, r.PAGE_3)
     gameInit();
 };
@@ -46,14 +56,16 @@ function gameInit() {
     window.playSound = playSound;
     gamebox = document.getElementById("game");
     gamebox.appendChild(r.c);
-    r.c.style = `height: ${h * 5}; width: ${w * 5}; margin: 30px`
+    r.c.style = `height: 100%; width: 100%;`
         //    gamebox.appendChild(r.debugCanvas);
         //r.debugCanvas.style = 'margin: 30px'
     initAudio();
+    initGameData();
     gameloop();
 }
 
 //document.body.appendChild( stats.dom );
+
 
 
 function initAudio() {
@@ -95,52 +107,40 @@ function initAudio() {
     })
 }
 
-x = w / 2;
-y = h / 2;
-color = 15;
-newX = Math.random() * w;
-newY = Math.random() * h;
-newColor = 15 + Math.random() * 15;
-rad = 8;
-newRad = 8 + Math.random() * 20;
-speed = 0.05;
-target = 0;
+function initGameData() {
+    r.renderTarget = r.mapSource;
+    r.pset(0,0,1);
+    r.fillRect(4,4,3,3,1)
+    // for(let i = 0; i <= map.width * map.height; i++){
+    //     map.data[i] = Math.round(Math.random()*3)
+    // }
+}
+
 
 function updateGame(dt) {
     t += dt;
-    target += dt * speed;
-    x = lerp(x, newX, target);
-    y = lerp(y, newY, target);
-    rad = lerp(rad, newRad, target);
-    color = lerp(color, newColor, target);
-    if (Math.abs(newX - x) < 1) {
-        newX = clamp(newX + Math.random() * 100 - 50, -20, w + 20);
-        newY = clamp(newY + Math.random() * 100 - 50, -20, h + 20);
-        newColor = clamp(newColor + Math.random() * 4 - 2, 15, 255);
-        newRad = 8 + Math.random() * 20;
-        target = 0;
-
+    if(Key.isDown(Key.d) || Key.isDown(Key.RIGHT)){
+        view.x+=1
     }
-    if (Key.justReleased(Key.a)) {
+    if(Key.isDown(Key.a) || Key.isDown(Key.LEFT)){
+        view.x-=1
+    }
+    if(Key.isDown(Key.w) || Key.isDown(Key.UP)){
+        view.y--
+    }
+    if(Key.isDown(Key.s) || Key.isDown(Key.DOWN)){
+        view.y++
+    }
+    if(Key.justReleased(Key.z)){
         playSound(sounds.cellComplete);
     }
 }
 
 function drawGame() {
-    //r.clear(0, r.SCREEN);
-    r.clear(0, r.PAGE_1);
-    r.clear(0, r.PAGE_2);
+    r.clear(0, r.SCREEN);
     r.renderTarget = r.SCREEN;
-    for (let i = 0; i < 300; i++) {
-        let x1 = Math.random() * w;
-        let y1 = Math.random() * h;
-        r.setColorBlend(clamp(r.pget(x1, y1, r.SCREEN) - 1, 0, 255) - 0.5);
-        r.fillCircle(x1, y1 - 3, 2);
-    }
-    r.setColorBlend(color - 0.5);
-    r.fillCircle(x - 1, y + 1, rad);
-    r.setColorBlend(color);
-    r.fillCircle(x, y, rad);
+    r.drawMap();
+    r.fillCircle(w/2, h/2, 20, 5);
     r.render();
     //r.debugRender();
 }
