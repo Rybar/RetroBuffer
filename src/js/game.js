@@ -1,8 +1,9 @@
 import RetroBuffer from './core/RetroBuffer.js';
 import MusicPlayer from './musicplayer.js';
-import { playSound, Key, inView, timestamp, lerp, clamp } from './core/utils.js';
-import Demos from './Demos.js';
-demos = new Demos();
+import { playSound, Key, inView, timestamp, lerp, clamp, rand } from './core/utils.js';
+import Player from './player.js'
+//import Demos from './Demos.js';
+//demos = new Demos();
 
 //sound assets
 import cellComplete from './sounds/cellComplete.js';
@@ -14,6 +15,7 @@ import cellComplete from './sounds/cellComplete.js';
 gameScale = 1;
 gameState = 1;
 sounds = [];
+mapToggle = false;
 
 last = timestamp();
 now = 0,
@@ -111,6 +113,9 @@ function initGameData() {
     r.renderTarget = r.mapSource;
     r.pset(0,0,1);
     r.fillRect(4,4,3,3,1)
+    for(let i = 0; i < 400; i++){
+        r.fillRect(rand(0,w), rand(0, h), rand(3, 12), rand(3,12), 1)
+    }
     // for(let i = 0; i <= map.width * map.height; i++){
     //     map.data[i] = Math.round(Math.random()*3)
     // }
@@ -120,27 +125,33 @@ function initGameData() {
 function updateGame(dt) {
     t += dt;
     if(Key.isDown(Key.d) || Key.isDown(Key.RIGHT)){
-        view.x+=1
+        //view.x+=1
+        Player.position.x +=1;
     }
     if(Key.isDown(Key.a) || Key.isDown(Key.LEFT)){
-        view.x-=1
+        Player.position.x -=1;
     }
     if(Key.isDown(Key.w) || Key.isDown(Key.UP)){
-        view.y--
+        Player.position.y -=1;
     }
     if(Key.isDown(Key.s) || Key.isDown(Key.DOWN)){
-        view.y++
+        Player.position.y +=1;
     }
     if(Key.justReleased(Key.z)){
         playSound(sounds.cellComplete);
+        mapToggle = !mapToggle
     }
+    Player.update();
+    view.x = lerp(view.x, Player.position.x-w/2, 0.1);
+    view.y = lerp(view.y, Player.position.y-h/2, 0.1);
 }
 
 function drawGame() {
     r.clear(0, r.SCREEN);
     r.renderTarget = r.SCREEN;
     r.drawMap();
-    r.fillCircle(w/2, h/2, 20, 5);
+    //r.fillCircle(w/2, h/2, 20, 5);
+    Player.draw();
     r.render();
     //r.debugRender();
 }

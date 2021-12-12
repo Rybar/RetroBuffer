@@ -8,7 +8,7 @@ var RetroBuffer = function(width, height, atlas, pages=5) {
         this.PAGESIZE = this.WIDTH * this.HEIGHT;
         this.PAGES = pages;
         this.atlas = atlas;
-        //TODO:  dynamically set page consts based on number of buffer pages
+        //TODO:  dynamically set page variable helpers based on number of buffer pages
         this.SCREEN = 0;
         this.PAGE_1 = this.PAGESIZE;
         this.PAGE_2 = this.PAGESIZE * 2;
@@ -131,8 +131,8 @@ RetroBuffer.prototype.pset = function(x, y, color = this.cursorColor, color2 = t
     let px = (y % 4) * 4 + (x % 4);
     let mask = this.pat & Math.pow(2, px);
     let pcolor = mask ? color + this.palOffset : color2 + this.palOffset;
-    if (x < 0 | x > this.WIDTH - 1) return;
-    if (y < 0 | y > this.HEIGHT - 1) return;
+    if (x < 0 || x > this.WIDTH - 1) return;
+    if (y < 0 || y > this.HEIGHT - 1) return;
 
     this.ram[this.renderTarget + y * this.WIDTH + x] = pcolor;
 }
@@ -403,7 +403,7 @@ RetroBuffer.prototype.drawTile = function drawTile(tile, x, y, tileset=this.spri
     this.sspr(drawX, drawY, tileset.tileSize.x, tileset.tileSize.y, x, y, tileset.tileSize.x*scale, tileset.tileSize.y*scale, flipx, flipy);
     this.renderSource = previousRenderSource;
 }
-RetroBuffer.prototype.drawMap = function(map) {
+RetroBuffer.prototype.drawMap = function() {
     let tileWidth = this.spriteTileset.tileSize.x;
     let tileHeight = this.spriteTileset.tileSize.y;
     let left = Math.floor(view.x/tileWidth);
