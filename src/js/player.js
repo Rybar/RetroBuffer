@@ -7,7 +7,7 @@ const Player = {
         y: 0,
     },
 
-    width: 8, height: 16,
+    width: 8, height: 8,
 
     velocity: {
         x: 0,
@@ -25,7 +25,7 @@ Player.update = function(dt){
 }
 Player.draw = function(dt){
    
-    r.fillRect(this.position.x-view.x, this.position.y-view.y, this.width, this.height, 15);
+    r.fillRect(this.position.x-view.x-this.width/2, this.position.y-view.y-this.height/2, this.width, this.height, 15);
 }
 
 export default Player;

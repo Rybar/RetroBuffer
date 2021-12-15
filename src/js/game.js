@@ -2,6 +2,7 @@ import RetroBuffer from './core/RetroBuffer.js';
 import MusicPlayer from './musicplayer.js';
 import { playSound, Key, inView, timestamp, lerp, clamp, rand } from './core/utils.js';
 import Player from './player.js'
+import Sprite from './sprite.js'
 //import Demos from './Demos.js';
 //demos = new Demos();
 
@@ -27,14 +28,13 @@ h = window.innerHeight/5 | 0;
 view = {x: 0, y: 0}
 
 tileWidth = tileHeight = 8;
+player = Player;
 
-window.map = {
-    width: 60,
-    height: 60,
-    data: []
-}
 
 t = 0;
+
+sprites = [];
+//sprites.push(new Sprite(100,100));
 
 document.body.style = "margin:0; background-color:black; overflow:hidden";
 
@@ -53,9 +53,9 @@ atlasImage.onload = function() {
     r.atlasToRam(atlas, this.width, this.height, r.PAGE_3)
     gameInit();
 };
-
 function gameInit() {
     window.playSound = playSound;
+    
     gamebox = document.getElementById("game");
     gamebox.appendChild(r.c);
     r.c.style = `height: 100%; width: 100%;`
@@ -111,11 +111,48 @@ function initAudio() {
 
 function initGameData() {
     r.renderTarget = r.mapSource;
+    
     r.pset(0,0,1);
     r.fillRect(4,4,3,3,1)
     for(let i = 0; i < 400; i++){
         r.fillRect(rand(0,w), rand(0, h), rand(3, 12), rand(3,12), 1)
     }
+    // for(let i = 0; i < 400; i++){
+    //     ball = new Sprite(rand(0, w), rand(0, h), rand(0, 256))
+    //     //ball.transform.scale = Math.random()*0.75 + 0.25;
+    //     sprites.push(ball);
+    // }
+    rad = 60
+    sprites.push(new Sprite(0,0,50));
+    sprites.push(new Sprite(-rad,-rad,rad * 4))
+    sprites.push(new Sprite(-rad, rad,rad * 4))
+    sprites.push(new Sprite(rad,-rad,rad * 4))
+    sprites.push(new Sprite(rad,rad,rad * 4))
+
+    sprites.push(new Sprite(-rad,-rad,rad * 3))
+    sprites.push(new Sprite(-rad, rad,rad * 3))
+    sprites.push(new Sprite(rad,-rad,rad * 3))
+    sprites.push(new Sprite(rad,rad,rad * 3))
+
+    sprites.push(new Sprite(-rad,-rad,rad * 2))
+    sprites.push(new Sprite(-rad, rad,rad * 2))
+    sprites.push(new Sprite(rad,-rad,rad * 2))
+    sprites.push(new Sprite(rad,rad,rad * 2))
+
+    sprites.push(new Sprite(-rad,-rad,rad))
+    sprites.push(new Sprite(-rad, rad,rad))
+    sprites.push(new Sprite(rad,-rad,rad))
+    sprites.push(new Sprite(rad,rad,rad))
+
+    sprites.push(new Sprite(-rad,-rad,0))
+    sprites.push(new Sprite(-rad, rad,0))
+    sprites.push(new Sprite(rad,-rad,0))
+    sprites.push(new Sprite(rad,rad,0))
+   
+
+    
+
+    sprites.sort(function(a,b){return b.transform.z - a.transform.z})
     // for(let i = 0; i <= map.width * map.height; i++){
     //     map.data[i] = Math.round(Math.random()*3)
     // }
@@ -126,22 +163,22 @@ function updateGame(dt) {
     t += dt;
     if(Key.isDown(Key.d) || Key.isDown(Key.RIGHT)){
         //view.x+=1
-        Player.position.x +=1;
+        player.position.x +=1;
     }
     if(Key.isDown(Key.a) || Key.isDown(Key.LEFT)){
-        Player.position.x -=1;
+        player.position.x -=1;
     }
     if(Key.isDown(Key.w) || Key.isDown(Key.UP)){
-        Player.position.y -=1;
+        player.position.y -=1;
     }
     if(Key.isDown(Key.s) || Key.isDown(Key.DOWN)){
-        Player.position.y +=1;
+        player.position.y +=1;
     }
     if(Key.justReleased(Key.z)){
         playSound(sounds.cellComplete);
         mapToggle = !mapToggle
     }
-    Player.update();
+    player.update();
     view.x = lerp(view.x, Player.position.x-w/2, 0.1);
     view.y = lerp(view.y, Player.position.y-h/2, 0.1);
 }
@@ -149,9 +186,12 @@ function updateGame(dt) {
 function drawGame() {
     r.clear(0, r.SCREEN);
     r.renderTarget = r.SCREEN;
-    r.drawMap();
+   
     //r.fillCircle(w/2, h/2, 20, 5);
+    sprites.forEach(e=>e.draw())
+    //r.drawMap();
     Player.draw();
+    console.log(`x: ${player.position.x} y: ${player.position.y}`)
     r.render();
     //r.debugRender();
 }
