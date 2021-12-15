@@ -25,7 +25,7 @@ now = 0,
 w = window.innerWidth/5| 0;
 h = window.innerHeight/5 | 0;
 
-view = {x: 0, y: 0}
+view = {x: 0, y: 0, z: 1}
 
 tileWidth = tileHeight = 8;
 player = Player;
@@ -117,12 +117,14 @@ function initGameData() {
     for(let i = 0; i < 400; i++){
         r.fillRect(rand(0,w), rand(0, h), rand(3, 12), rand(3,12), 1)
     }
-    // for(let i = 0; i < 400; i++){
-    //     ball = new Sprite(rand(0, w), rand(0, h), rand(0, 256))
-    //     //ball.transform.scale = Math.random()*0.75 + 0.25;
-    //     sprites.push(ball);
-    // }
+    for(let i = 0; i < 100; i++){
+        ball = new Sprite(rand(-w*3, w*3), rand(-w*3, w*5), rand(200, 300))
+        ball.graphic.color = 156-121;
+        //ball.transform.scale = Math.random()*0.75 + 0.25;
+        sprites.push(ball);
+    }
     rad = 60
+    //for(let i = 0; i < 10; i++){
     sprites.push(new Sprite(0,0,50));
     sprites.push(new Sprite(-rad,-rad,rad * 4))
     sprites.push(new Sprite(-rad, rad,rad * 4))
@@ -148,6 +150,7 @@ function initGameData() {
     sprites.push(new Sprite(-rad, rad,0))
     sprites.push(new Sprite(rad,-rad,0))
     sprites.push(new Sprite(rad,rad,0))
+   // }
    
 
     
@@ -178,7 +181,8 @@ function updateGame(dt) {
         playSound(sounds.cellComplete);
         mapToggle = !mapToggle
     }
-    player.update();
+    player.update(dt);
+    sprites.forEach(e=>e.update(dt))
     view.x = lerp(view.x, Player.position.x-w/2, 0.1);
     view.y = lerp(view.y, Player.position.y-h/2, 0.1);
 }
@@ -191,7 +195,7 @@ function drawGame() {
     sprites.forEach(e=>e.draw())
     //r.drawMap();
     Player.draw();
-    console.log(`x: ${player.position.x} y: ${player.position.y}`)
+  //  console.log(`x: ${view.x}} y: ${view.y}`)
     r.render();
     //r.debugRender();
 }
