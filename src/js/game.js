@@ -1,6 +1,6 @@
 import RetroBuffer from './core/RetroBuffer.js';
 import MusicPlayer from './musicplayer.js';
-import { playSound, Key, inView, timestamp, lerp, clamp, rand } from './core/utils.js';
+import { playSound, Key, inView, timestamp, lerp, clamp, rand, choice } from './core/utils.js';
 import Player from './player.js'
 import Sprite from './sprite.js'
 //import Demos from './Demos.js';
@@ -17,6 +17,7 @@ gameScale = 1;
 gameState = 1;
 sounds = [];
 mapToggle = false;
+onscreen = 0;
 
 last = timestamp();
 now = 0,
@@ -111,46 +112,30 @@ function initAudio() {
 
 function initGameData() {
     r.renderTarget = r.mapSource;
-    
+    player.position = {x: 0, y: 0};
     r.pset(0,0,1);
     r.fillRect(4,4,3,3,1)
     for(let i = 0; i < 400; i++){
         r.fillRect(rand(0,w), rand(0, h), rand(3, 12), rand(3,12), 1)
     }
-    for(let i = 0; i < 100; i++){
-        ball = new Sprite(rand(-w*3, w*3), rand(-w*3, w*5), rand(200, 300))
-        ball.graphic.color = 156-121;
-        //ball.transform.scale = Math.random()*0.75 + 0.25;
-        sprites.push(ball);
+    // for(let i = 0; i < 300; i++){
+    //     ball = new Sprite(rand(0, 2000), rand(0, 2000), 0)
+    //     //ball.graphic.color = 156-121;
+    //     //ball.transform.scale = Math.random()*0.75 + 0.25;
+    //     sprites.push(ball);
+    // }
+    for(let i = 0; i < 90; i++){
+        var x = rand(-1000, 1000),
+            y = rand(-1000, 1000),
+            h = rand(2, 10);
+            depth = rand(0, 50);
+        for(let j = 0; j <= h; j++) {
+            ball = new Sprite(x,y,depth + 40 * j)
+            //ball.graphic.color = choice([153-2, 122, 245])
+            sprites.push(ball  ) 
+        }
     }
-    rad = 60
-    //for(let i = 0; i < 10; i++){
-    sprites.push(new Sprite(0,0,50));
-    sprites.push(new Sprite(-rad,-rad,rad * 4))
-    sprites.push(new Sprite(-rad, rad,rad * 4))
-    sprites.push(new Sprite(rad,-rad,rad * 4))
-    sprites.push(new Sprite(rad,rad,rad * 4))
 
-    sprites.push(new Sprite(-rad,-rad,rad * 3))
-    sprites.push(new Sprite(-rad, rad,rad * 3))
-    sprites.push(new Sprite(rad,-rad,rad * 3))
-    sprites.push(new Sprite(rad,rad,rad * 3))
-
-    sprites.push(new Sprite(-rad,-rad,rad * 2))
-    sprites.push(new Sprite(-rad, rad,rad * 2))
-    sprites.push(new Sprite(rad,-rad,rad * 2))
-    sprites.push(new Sprite(rad,rad,rad * 2))
-
-    sprites.push(new Sprite(-rad,-rad,rad))
-    sprites.push(new Sprite(-rad, rad,rad))
-    sprites.push(new Sprite(rad,-rad,rad))
-    sprites.push(new Sprite(rad,rad,rad))
-
-    sprites.push(new Sprite(-rad,-rad,0))
-    sprites.push(new Sprite(-rad, rad,0))
-    sprites.push(new Sprite(rad,-rad,0))
-    sprites.push(new Sprite(rad,rad,0))
-   // }
    
 
     
@@ -183,8 +168,8 @@ function updateGame(dt) {
     }
     player.update(dt);
     sprites.forEach(e=>e.update(dt))
-    view.x = lerp(view.x, Player.position.x-w/2, 0.1);
-    view.y = lerp(view.y, Player.position.y-h/2, 0.1);
+    view.x = lerp(view.x, Player.position.x-w/2, 0.05);
+    view.y = lerp(view.y, Player.position.y-h/2, 0.05);
 }
 
 function drawGame() {
@@ -195,6 +180,8 @@ function drawGame() {
     sprites.forEach(e=>e.draw())
     //r.drawMap();
     Player.draw();
+    console.log(`Sprite Count: ${onscreen}`)
+    onscreen = 0;
   //  console.log(`x: ${view.x}} y: ${view.y}`)
     r.render();
     //r.debugRender();

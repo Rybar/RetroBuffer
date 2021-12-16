@@ -1,5 +1,5 @@
 //globals r = RetroBuffer, view = {x,y}
-import { inView } from './core/utils'
+import { inView, inView3D, rand } from './core/utils'
 var Sprite = function(x, y, z){
     this.focalLength = 50;
     this.graphic = {
@@ -29,7 +29,7 @@ var Sprite = function(x, y, z){
     
     return this;
 }
-
+3
 Sprite.prototype.draw = function(){
 
     this.screenTransform.x = (w/2) + (this.transform.x - view.x) * this.transform.scale;
@@ -38,21 +38,17 @@ Sprite.prototype.draw = function(){
     this.screenTransform.width = this.graphic.width * this.transform.scale
     this.screenTransform.height = this.graphic.height * this.transform.scale
     var { x, y, width, height} = this.screenTransform;
-/*
 
-Screen X = - (resX/2) * (x / z) + (resX/2)
-Screen Y = - (resY/2) * (y / z) + (resY/2)
-
-*/
-
-   if(inView(this.screenTransform, (w/this.transform.scale)/2 ) ){
+   if(inView3D(this.transform, w/2*1/this.transform.scale) ){
         r.renderSource = r.PAGE_3;
         r.palOffset = this.graphic.color;
+        r.setPen(0,121, r.dither[16 - Math.floor(this.transform.scale * 16 )]);
         r.sspr(this.graphic.x, this.graphic.y, this.graphic.width, this.graphic.height,
         x-width/2,
         y-height/2,
         width, height)
         r.palOffset = 0;
+        onscreen++;
     }
 
 }

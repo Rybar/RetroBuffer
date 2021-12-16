@@ -377,7 +377,7 @@ RetroBuffer.prototype.sspr = function(sx = 0, sy = 0, sw = 16, sh = 16, x = 0, y
 
     var xratio = sw / dw;
     var yratio = sh / dh;
-    this.pat = this.dither[0]; //reset pattern
+    //this.pat = this.dither[0]; //reset pattern
     for (var i = 0; i < dh; i++) {
         for (var j = 0; j < dw; j++) {
             px = (j * xratio) | 0;

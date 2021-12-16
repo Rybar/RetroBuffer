@@ -24,7 +24,7 @@ Player.update = function(dt){
 
 }
 Player.draw = function(dt){
-   
+    onscreen++;
     r.fillRect(this.position.x-view.x-this.width/2, this.position.y-view.y-this.height/2, this.width, this.height, 15);
 }
 

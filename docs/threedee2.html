@@ -1,0 +1,1448 @@
+<style>
+  section {
+  width: 100%; height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+  canvas {display: block;  image-rendering: pixelated;
+    image-rendering: crisp-edges; background-color: black;}
+  
+</style>
+  <section id='game'>
+  </section>
+  <!-- don't forget to change this back to game.js for final build with roadroller -->
+  <script>(function () {
+
+//todo: debug canvas. a 1 to 1 view of all pages
+
+var RetroBuffer = function(width, height, atlas, pages=5) {
+
+        this.WIDTH = width;
+        this.HEIGHT = height;
+        this.PAGESIZE = this.WIDTH * this.HEIGHT;
+        this.PAGES = pages;
+        this.atlas = atlas;
+        //TODO:  dynamically set page variable helpers based on number of buffer pages
+        this.SCREEN = 0;
+        this.PAGE_1 = this.PAGESIZE;
+        this.PAGE_2 = this.PAGESIZE * 2;
+        this.PAGE_3 = this.PAGESIZE * 3;
+        this.PAGE_4 = this.PAGESIZE * 4;
+
+        //relative drawing position and pencolor, for drawing functions that require it.
+        this.cursorX = 0;
+        this.cursorY = 0;
+        this.cursorColor = 15;
+        this.cursorColor2 = 0;
+        this.palOffset = 0;
+        this.stencil = false;
+        this.stencilSource = this.PAGE_2;
+        this.mapSource = this.PAGE_4;
+        this.stencilOffset = 0;
+
+        this.spriteTileset = {
+            width: 32,
+            height: 1,
+            tileSource: this.PAGE_3,
+            tileOrigin: { x: 0, y: 24 },
+            tileSize: { x: 8, y: 8 },
+        };
+
+        this.fontTileset = {
+            width: 51,
+            height: 2,
+            tileSource: this.PAGE_3,
+            tileOrigin: { x: 0, y: 8 },
+            tileSize: { x: 5, y: 8 },
+        };
+
+        this.paletteSize = 255; //ram is Uint8, so this can't be higher than 255.
+        this.tilesets = [this.spriteTileset, this.fontTileset];
+
+        //colors is an array of 32bit values representing the palette. Taken from the top of the atlas.
+        this.colors = this.atlas.slice(0, this.paletteSize);
+
+        //active palette. change values in this array for index-color-mapping
+        this.pal = this.fillRange(0, 255);
+        //default palette index
+        this.palDefault = this.fillRange(0, this.paletteSize, 0);
+
+
+        this.c = document.createElement('canvas');
+        this.c.width = this.WIDTH;
+        this.c.height = this.HEIGHT;
+        this.ctx = this.c.getContext('2d');
+        this.renderTarget = 0x00000;
+        this.renderSource = this.PAGESIZE; //buffer is ahead one screen's worth of pixels
+
+        this.debugCanvas = document.createElement('canvas');
+        this.debugCanvas.width = this.WIDTH;
+        this.debugCanvas.height = this.HEIGHT * this.PAGES;
+        this.debugctx = this.debugCanvas.getContext('2d');
+
+
+        this.fontString = `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$.'"?/<()`;
+
+
+        
+        //TODO: Can the dither table be added to the atlas too and read-in at init?
+        this.dither = [
+            0b1111111111111111,
+            0b1111111111110111,
+            0b1111110111110111,
+            0b1111110111110101,
+            0b1111010111110101,
+            0b1111010110110101,
+            0b1110010110110101,
+            0b1110010110100101,
+            0b1010010110100101,
+            0b1010010110100001,
+            0b1010010010100001,
+            0b1010010010100000,
+            0b1010000010100000,
+            0b1010000000100000,
+            0b1000000000100000,
+            0b1000000000000000,
+            0b0000000000000000,
+            0b1111100110011111,
+            0b0000011001100000,
+            0b1111100010001000,
+        ];
+
+        this.pat = 0b1111111111111111;
+
+
+        this.ctx.imageSmoothingEnabled = false;
+
+        this.imageData = this.ctx.getImageData(0, 0, this.WIDTH, this.HEIGHT),
+            this.buf = new ArrayBuffer(this.imageData.data.length),
+            this.buf8 = new Uint8Array(this.buf),
+            this.data = new Uint32Array(this.buf),
+            this.ram = new Uint8Array(this.WIDTH * this.HEIGHT * this.PAGES);
+
+        return this;
+    };
+    //--------------graphics functions----------------
+RetroBuffer.prototype.clear = function(color, page) {
+    this.ram.fill(color, page, page + this.PAGESIZE);
+};
+
+RetroBuffer.prototype.setPalette = function(start, end, newIndices) {
+    for (let i = start; i < end; i++) {
+        this.pal[i] = newIndices[(i - start) % newIndices.length];
+    }
+};
+RetroBuffer.prototype.setPen = function(color, color2, dither = 0) {
+    this.cursorColor = color;
+    this.cursorColor2 = color2;
+    this.pat = dither;
+};
+
+RetroBuffer.prototype.pset = function(x, y, color = this.cursorColor, color2 = this.cursorColor2) {
+    x = x | 0;
+    y = y | 0;
+    color = this.stencil ? this.pget(x, y, this.stencilSource) : (color | 0) % this.paletteSize;
+    let px = (y % 4) * 4 + (x % 4);
+    let mask = this.pat & Math.pow(2, px);
+    let pcolor = mask ? color + this.palOffset : color2 + this.palOffset;
+    if (x < 0 || x > this.WIDTH - 1) return;
+    if (y < 0 || y > this.HEIGHT - 1) return;
+
+    this.ram[this.renderTarget + y * this.WIDTH + x] = pcolor;
+};
+
+RetroBuffer.prototype.pget = function(x, y, page = 0) {
+    x = x | 0;
+    y = y | 0;
+    return this.ram[page + x + y * this.WIDTH];
+};
+
+RetroBuffer.prototype.line = function(x1, y1, x2, y2, color=this.cursorColor) {
+
+    x1 = x1 | 0,
+        x2 = x2 | 0,
+        y1 = y1 | 0,
+        y2 = y2 | 0;
+
+    var dy = (y2 - y1);
+    var dx = (x2 - x1);
+    var stepx, stepy;
+
+    if (dy < 0) {
+        dy = -dy;
+        stepy = -1;
+    } else {
+        stepy = 1;
+    }
+    if (dx < 0) {
+        dx = -dx;
+        stepx = -1;
+    } else {
+        stepx = 1;
+    }
+    dy <<= 1; // dy is now 2*dy
+    dx <<= 1; // dx is now 2*dx
+
+    this.pset(x1, y1, color);
+    if (dx > dy) {
+        var fraction = dy - (dx >> 1); // same as 2*dy - dx
+        while (x1 != x2) {
+            if (fraction >= 0) {
+                y1 += stepy;
+                fraction -= dx; // same as fraction -= 2*dx
+            }
+            x1 += stepx;
+            fraction += dy; // same as fraction -= 2*dy
+            this.pset(x1, y1, color);
+        }    } else {
+        fraction = dx - (dy >> 1);
+        while (y1 != y2) {
+            if (fraction >= 0) {
+                x1 += stepx;
+                fraction -= dy;
+            }
+            y1 += stepy;
+            fraction += dx;
+            this.pset(x1, y1, color);
+        }
+    }
+
+};
+
+RetroBuffer.prototype.tline = function(x1, y1, x2, y2, tx1, ty1, tx2, ty2) {
+  var color = this.pget(tx1, ty1, this.renderSource);
+  x1 = Math.round(x1);
+      x2 = Math.round(x2);
+      y1 = Math.round(y1);
+      y2 = Math.round(y2);
+      tx1 = Math.round(tx1);
+      tx2 = Math.round(tx2);
+      ty1 = Math.round(ty1);
+      ty2 = Math.round(ty2);
+
+  var dy = (y2 - y1);
+  var dx = (x2 - x1);
+  var tdx = (tx2 - tx1);
+  var tdy = (ty2 - ty1);
+  var startX = x1;
+  var startY = y1;
+  var stepx, stepy, tstepx, tstepy, ratioX, ratioY, tx, ty;
+
+//source line increment
+  if (dy < 0) {
+      dy = -dy;
+      stepy = -1;
+  } else {
+      stepy = 1;
+  }
+  if (dx < 0) {
+      dx = -dx;
+      stepx = -1;
+  } else {
+      stepx = 1;
+  }
+  //source line increment
+  if (tdy < 0) {
+    tdy = -tdy;
+    tstepy = -1;
+} else {
+    tstepy = 1;
+}
+if (tdx < 0) {
+    tdx = -tdx;
+    tstepx = -1;
+} else {
+    tstepx = 1;
+}
+  var ody = dy;
+  var odx = dx;
+  dy <<= 1; // dy is now 2*dy
+  dx <<= 1; // dx is now 2*dx
+
+  this.pset(x1, y1, color);
+  if (dx > dy) {
+      var fraction = dy - (dx >> 1); // same as 2*dy - dx
+      while (x1 != x2) {
+          if (fraction >= 0) {
+              y1 += stepy;
+              fraction -= dx; // same as fraction -= 2*dx
+          }
+          x1 += stepx;
+          fraction += dy; // same as fraction -= 2*dy
+
+          ratioX = (startX -x1)/odx;
+          ratioX = ratioX < 0 ? ratioX *= -1 : ratioX;
+          ratioY = (startY -y1)/ody;
+          ratioY = ratioY < 0 ? ratioY *= -1 : ratioY;
+          tx = tstepx > 0 ? tx1 + tdx * ratioX : tx1 - tdx * ratioX;
+          ty = tstepy > 0 ? ty1 + tdy * ratioX : ty1 - tdy * ratioX;
+         
+          color = this.pget(tx, ty, this.renderSource);
+          this.pset(x1, y1, color);
+      }  } else {
+      fraction = dx - (dy >> 1);
+      while (y1 != y2) {
+          if (fraction >= 0) {
+              x1 += stepx;
+              fraction -= dy;
+          }
+          y1 += stepy;
+          fraction += dx;
+
+          ratioX = (startX -x1)/odx;
+          ratioX = ratioX < 0 ? ratioX *= -1 : ratioX;
+          ratioY = (startY -y1)/ody;
+          ratioY = ratioY < 0 ? ratioY *= -1 : ratioY;
+          tx = tstepx > 0 ? tx1 + tdx * ratioY : tx1 - tdx * ratioY;
+          ty = tstepy > 0 ? ty1 + tdy * ratioY : ty1 - tdy * ratioY;
+         
+          color = this.pget(tx, ty, this.renderSource);
+          this.pset(x1, y1, color);
+      }
+  }
+
+};
+
+RetroBuffer.prototype.circle = function(xm, ym, r, color) {
+    xm = xm | 0;
+    ym = ym | 0;
+    r = r | 0;
+    color = color | 0;
+    var x = -r,
+        y = 0,
+        err = 2 - 2 * r;
+    /* II. Quadrant */
+    do {
+        this.pset(xm - x, ym + y, color);
+        /*   I. Quadrant */
+        this.pset(xm - y, ym - x, color);
+        /*  II. Quadrant */
+        this.pset(xm + x, ym - y, color);
+        /* III. Quadrant */
+        this.pset(xm + y, ym + x, color);
+        /*  IV. Quadrant */
+        r = err;
+        if (r <= y) err += ++y * 2 + 1;
+        /* e_xy+e_y < 0 */
+        if (r > x || err > y) err += ++x * 2 + 1;
+        /* e_xy+e_x > 0 or no 2nd y-step */
+
+    } while (x < 0);
+};
+
+RetroBuffer.prototype.fillCircle = function(xm, ym, r, color=this.cursorColor) {
+    xm = xm | 0;
+    ym = ym | 0;
+    r = r | 0;
+    color = color | 0;
+    if (r < 0) return;
+    xm = xm | 0;
+    ym = ym | 0, r = r | 0;
+    var x = -r,
+        y = 0,
+        err = 2 - 2 * r;
+    /* II. Quadrant */
+    do {
+        this.line(xm - x, ym - y, xm + x, ym - y, color);
+        this.line(xm - x, ym + y, xm + x, ym + y, color);
+        r = err;
+        if (r <= y) err += ++y * 2 + 1;
+        if (r > x || err > y) err += ++x * 2 + 1;
+    } while (x < 0);
+};
+
+RetroBuffer.prototype.rect = function(x, y, w, h, color = 0) {
+    let
+        x1 = x | 0,
+        y1 = y | 0,
+        x2 = (x + w) | 0,
+        y2 = (y + h) | 0;
+
+    this.line(x1, y1, x2, y1, color);
+    this.line(x2, y1, x2, y2, color);
+    this.line(x1, y2, x2, y2, color);
+    this.line(x1, y1, x1, y2, color);
+};
+
+RetroBuffer.prototype.fillRect = function(x, y, w, h, color) {
+
+    let
+        x1 = x | 0,
+        y1 = y | 0,
+        x2 = ((x + w) | 0) - 1,
+        y2 = ((y + h) | 0) - 1;
+    color = color;
+
+    var i = Math.abs(y2 - y1);
+    this.line(x1, y1, x2, y1, color);
+
+    if (i > 0) {
+        while (--i) {
+            this.line(x1, y1 + i, x2, y1 + i, color);
+        }
+    }
+
+    this.line(x1, y2, x2, y2, color);
+};
+
+RetroBuffer.prototype.sspr = function(sx = 0, sy = 0, sw = 16, sh = 16, x = 0, y = 0, dw = 32, dh = 32, flipx = false, flipy = false) {
+
+    var xratio = sw / dw;
+    var yratio = sh / dh;
+    //this.pat = this.dither[0]; //reset pattern
+    for (var i = 0; i < dh; i++) {
+        for (var j = 0; j < dw; j++) {
+            px = (j * xratio) | 0;
+            py = (i * yratio) | 0;
+            px = flipx ? dw - px - 1 : px;
+            py = flipy ? dh - py - 1 : py;
+            source = this.pget(sx + px, sy + py, this.renderSource);
+            if (source > 0) {
+                this.pset(x + j, y + i, source);
+            }
+        }
+    }
+};
+RetroBuffer.prototype.drawTile = function drawTile(tile, x, y, tileset=this.spriteTileset, scale=1, flipx = false, flipy = false) {
+    //console.log(tileset);
+    let
+        tileX = tile % tileset.width,
+        tileY = Math.floor(tile / tileset.width),
+        drawX = tileset.tileOrigin.x + (tileX * tileset.tileSize.x),
+        drawY = tileset.tileOrigin.y + (tileY * tileset.tileSize.y),
+        previousRenderSource = this.renderSource;
+    this.renderSource = tileset.tileSource;
+    this.sspr(drawX, drawY, tileset.tileSize.x, tileset.tileSize.y, x, y, tileset.tileSize.x*scale, tileset.tileSize.y*scale, flipx, flipy);
+    this.renderSource = previousRenderSource;
+};
+RetroBuffer.prototype.drawMap = function() {
+    let tileWidth = this.spriteTileset.tileSize.x;
+    let tileHeight = this.spriteTileset.tileSize.y;
+    let left = Math.floor(view.x/tileWidth);
+    let right = left + Math.floor(w/tileWidth) + 1;
+    let top = Math.floor(view.y/tileHeight);
+    let bottom = top + Math.floor(h/tileHeight) + 1;
+
+    //this optimization doesn't play nice at the maps edges for scrolling camera past bounds. 
+    for(let i = left; i < right; i++){
+        for(let j = top; j < bottom; j++){
+            
+            this.drawTile(this.ram[this.mapSource + i * this.WIDTH + j], i*tileWidth-view.x, j*tileHeight-view.y);
+        }
+    }
+};
+
+RetroBuffer.prototype.triangle = function triangle(p1, p2, p3, color) {
+    this.line(p1.x, p1.y, p2.x, p2.y, color);
+    this.line(p2.x, p2.y, p3.x, p3.y, color);
+    this.line(p3.x, p3.y, p1.x, p1.y, color);
+
+};
+
+//from https://www-users.mat.uni.torun.pl//~wrona/3d_tutor/tri_fillers.html
+RetroBuffer.prototype.fillTriangle = function fillTriangle(p1, p2, p3, color) {
+    //sort vertices by y, top first
+
+    let P = [Object.assign({}, p1), Object.assign({}, p2), Object.assign({}, p3)].sort((a, b) => a.y - b.y);
+    let A = P[0],
+        B = P[1],
+        C = P[2],
+        dx1 = 0,
+        dx2 = 0,
+        dx3 = 0,
+        S = {},
+        E = {};
+
+    if (B.y - A.y > 0) dx1 = (B.x - A.x) / (B.y - A.y);
+    if (C.y - A.y > 0) dx2 = (C.x - A.x) / (C.y - A.y);
+    if (C.y - B.y > 0) dx3 = (C.x - B.x) / (C.y - B.y);
+
+
+    Object.assign(S, A);
+    Object.assign(E, A);
+    if (dx1 > dx2) {
+        for (; S.y <= B.y; S.y++, E.y++, S.x += dx2, E.x += dx1) {
+
+            this.line(S.x, S.y, E.x, S.y, color);
+        }
+        E = B;
+        for (; S.y <= C.y; S.y++, E.y++, S.x += dx2, E.x += dx3)
+            this.line(S.x, S.y, E.x, S.y, color);
+    } else {
+        for (; S.y <= B.y; S.y++, E.y++, S.x += dx1, E.x += dx2) {
+            this.line(S.x, S.y, E.x, S.y, color);
+        }
+        S = B;
+        for (; S.y <= C.y; S.y++, E.y++, S.x += dx3, E.x += dx2) {
+            this.line(S.x, S.y, E.x, S.y, color);
+        }
+    }
+};
+
+RetroBuffer.prototype.atlasToRam = function(imageBuffer, bufferWidth, bufferHeight, address) {
+
+    for (var j = 0; j < bufferHeight; j++) {
+        for (var i = 0; i < bufferWidth; i++) {
+
+            this.ram[address + j * this.WIDTH + i] = this.colors.indexOf(imageBuffer[j * bufferWidth + i]);
+        }
+    }
+};
+
+RetroBuffer.prototype.render = function() {
+
+    var i = this.PAGESIZE; // display is first page of ram
+
+    while (i--) {
+        /*
+        data is 32bit view of final screen buffer
+        for each pixel on screen, we look up it's color and assign it
+        */
+        if (i >= 0) this.data[i] = this.colors[this.pal[this.ram[i]]];
+
+    }
+
+    this.imageData.data.set(this.buf8);
+    this.c.width = this.c.width;
+    this.ctx.putImageData(this.imageData, 0, 0);
+
+};
+
+RetroBuffer.prototype.debugRender = function() {
+    this.debugCanvas.width = this.debugCanvas.width;
+
+    for (let j = 0; j < this.PAGES; j++) {
+
+        renderTarget = this.SCREEN;
+        this.renderSource = j * this.PAGESIZE;
+        this.ram.copyWithin(this.renderTarget, this.renderSource, this.renderSource + this.PAGESIZE);
+
+
+        let i = this.PAGESIZE; // display is first page of ram
+
+        while (i--) {
+            if (i > 0) this.data[i] = this.colors[this.pal[this.ram[i]]];
+        }
+        this.imageData.data.set(this.buf8);
+        this.debugctx.putImageData(this.imageData, 0, this.HEIGHT * j);
+
+    }
+
+
+};
+
+//o is an array of options with the following structure:
+/* [textstring, x, y, hspacing, vspacing, halign, valign, scale, color, offset, delay, frequency]
+0: text
+1: x
+2: y
+3: hspacing
+4: vspacing
+5: halign
+6: valign
+7: scale
+8: color
+*/
+RetroBuffer.prototype.textLine = function textLine(o) {
+  let originalPalOffset = this.palOffset;
+  this.palOffset = -16 + o[5];
+  //console.log(o)
+  for (var i = 0; i < o[0].length; i++) {
+      var letter = this.getCharacter(o[0].charAt(i));
+      let lx = o[1] + (o[3] * i) + (i * this.fontTileset.tileSize.x)*o[4];
+      let ly = o[2]; 
+      this.drawTile(letter, lx, ly, this.fontTileset, o[4], false, false);
+  } //end text loop
+  this.palOffset = originalPalOffset;
+}; //end textLine()
+
+RetroBuffer.prototype.text = function text(o) {
+    var size = this.fontTileset.tileSize.y,
+        letterSize = size * o[7],
+        lines = o[0].split('\n'),
+        linesCopy = lines.slice(0),
+        lineCount = lines.length,
+        longestLine = linesCopy.sort(function(a, b) {
+            return b.length - a.length;
+        })[0],
+        textWidth = (longestLine.length * letterSize) + ((longestLine.length - 1) * o[3]),
+        textHeight = (lineCount * letterSize) + ((lineCount - 1) * o[4]);
+
+    if (!o[5]) o[5] = 'left';
+    if (!o[6]) o[6] = 'bottom';
+
+    o[1];
+        o[2];
+        o[1] + textWidth;
+        o[2] + textHeight;
+
+    if (o[5] == 'center') {
+        o[1] - textWidth / 2;
+        o[1] + textWidth / 2;
+    } else if (o[5] == 'right') {
+        o[1] - textWidth;
+    }
+
+    if (o[6] == 'center') {
+        o[2] - textHeight / 2;
+        o[2] + textHeight / 2;
+    } else if (o[6] == 'bottom') {
+        o[2] - textHeight;
+    }
+
+    for (var i = 0; i < lineCount; i++) {
+        var line = lines[i],
+            lineWidth = (line.length * letterSize) + ((line.length - 1) * o[3]),
+            x = o[1],
+            y = o[2] + (letterSize + o[4]) * i;
+
+        if (o[5] == 'center') {
+            x = o[1] - lineWidth / 2;
+        } else if (o[5] == 'right') {
+            x = o[1] - lineWidth;
+        }
+
+        if (o[6] == 'center') {
+            y = y - textHeight / 2;
+        } else if (o[6] == 'bottom') {
+            y = y - textHeight;
+        }
+
+        this.textLine([
+            line, //0
+            x,    //1
+            y,    //2
+            o[3], //3
+            o[7], //4
+            o[8]  //5
+        ]);
+    }
+};
+
+RetroBuffer.prototype.getCharacter = function getCharacter(char) {
+    index = this.fontString.indexOf(char);
+    return index;
+    
+};
+
+RetroBuffer.prototype.fillRange = (start, end) => {
+    return Array(end - start + 1).fill().map((item, index) => start + index);
+};
+
+RetroBuffer.prototype.setColorBlend = function(colorFloat) {
+    this.cursorColor = Math.floor(colorFloat);
+    this.cursorColor2 = Math.ceil(colorFloat);
+    this.pat = this.dither[ Math.round( (colorFloat % 1) * 15 )];
+    return {color1: this.cursorColor, color2: this.cursorColor2, pat: this.pat};
+};
+
+/* -*- mode: javascript; tab-width: 4; indent-tabs-mode: nil; -*-
+*
+* Copyright (c) 2011-2013 Marcus Geelnard
+*
+* This software is provided 'as-is', without any express or implied
+* warranty. In no event will the authors be held liable for any damages
+* arising from the use of this software.
+*
+* Permission is granted to anyone to use this software for any purpose,
+* including commercial applications, and to alter it and redistribute it
+* freely, subject to the following restrictions:
+*
+* 1. The origin of this software must not be misrepresented; you must not
+*    claim that you wrote the original software. If you use this software
+*    in a product, an acknowledgment in the product documentation would be
+*    appreciated but is not required.
+*
+* 2. Altered source versions must be plainly marked as such, and must not be
+*    misrepresented as being the original software.
+*
+* 3. This notice may not be removed or altered from any source
+*    distribution.
+*
+*/
+
+//"use strict";
+
+// Some general notes and recommendations:
+//  * This code uses modern ECMAScript features, such as ** instead of
+//    Math.pow(). You may have to modify the code to make it work on older
+//    browsers.
+//  * If you're not using all the functionality (e.g. not all oscillator types,
+//    or certain effects), you can reduce the size of the player routine even
+//    further by deleting the code.
+
+
+var MusicPlayer = function() {
+
+    //--------------------------------------------------------------------------
+    // Private methods
+    //--------------------------------------------------------------------------
+
+    // Oscillators
+    var osc_sin = function (value) {
+        return Math.sin(value * 6.283184);
+    };
+
+    var osc_saw = function (value) {
+        return 2 * (value % 1) - 1;
+    };
+
+    var osc_square = function (value) {
+        return (value % 1) < 0.5 ? 1 : -1;
+    };
+
+    var osc_tri = function (value) {
+        var v2 = (value % 1) * 4;
+        if(v2 < 2) return v2 - 1;
+        return 3 - v2;
+    };
+
+    var getnotefreq = function (n) {
+        // 174.61.. / 44100 = 0.003959503758 (F3)
+        return 0.003959503758 * (2 ** ((n - 128) / 12));
+    };
+
+    var createNote = function (instr, n, rowLen) {
+        var osc1 = mOscillators[instr.i[0]],
+            o1vol = instr.i[1],
+            o1xenv = instr.i[3]/32,
+            osc2 = mOscillators[instr.i[4]],
+            o2vol = instr.i[5],
+            o2xenv = instr.i[8]/32,
+            noiseVol = instr.i[9],
+            attack = instr.i[10] * instr.i[10] * 4,
+            sustain = instr.i[11] * instr.i[11] * 4,
+            release = instr.i[12] * instr.i[12] * 4,
+            releaseInv = 1 / release,
+            expDecay = -instr.i[13]/16,
+            arp = instr.i[14],
+            arpInterval = rowLen * (2 **(2 - instr.i[15]));
+
+        var noteBuf = new Int32Array(attack + sustain + release);
+
+        // Re-trig oscillators
+        var c1 = 0, c2 = 0;
+
+        // Local variables.
+        var j, j2, e, rsample, o1t, o2t;
+
+        // Generate one note (attack + sustain + release)
+        for (j = 0, j2 = 0; j < attack + sustain + release; j++, j2++) {
+            if (j2 >= 0) {
+                // Switch arpeggio note.
+                arp = (arp >> 8) | ((arp & 255) << 4);
+                j2 -= arpInterval;
+
+                // Calculate note frequencies for the oscillators
+                o1t = getnotefreq(n + (arp & 15) + instr.i[2] - 128);
+                o2t = getnotefreq(n + (arp & 15) + instr.i[6] - 128) * (1 + 0.0008 * instr.i[7]);
+            }
+
+            // Envelope
+            e = 1;
+            if (j < attack) {
+                e = j / attack;
+            } else if (j >= attack + sustain) {
+                e = (j - attack - sustain) * releaseInv;
+                e = (1 - e) * (3 ** (expDecay * e));
+            }
+
+            // Oscillator 1
+            c1 += o1t * e ** o1xenv;
+            rsample = osc1(c1) * o1vol;
+
+            // Oscillator 2
+            c2 += o2t * e ** o2xenv;
+            rsample += osc2(c2) * o2vol;
+
+            // Noise oscillator
+            if (noiseVol) {
+                rsample += (2 * Math.random() - 1) * noiseVol;
+            }
+
+            // Add to (mono) channel buffer
+            noteBuf[j] = (80 * rsample * e) | 0;
+        }
+
+        return noteBuf;
+    };
+
+
+    //--------------------------------------------------------------------------
+    // Private members
+    //--------------------------------------------------------------------------
+
+    // Array of oscillator functions
+    var mOscillators = [
+        osc_sin,
+        osc_square,
+        osc_saw,
+        osc_tri
+    ];
+
+    // Private variables set up by init()
+    var mSong, mLastRow, mCurrentCol, mNumWords, mMixBuf;
+
+
+    //--------------------------------------------------------------------------
+    // Initialization
+    //--------------------------------------------------------------------------
+
+    this.init = function (song) {
+        // Define the song
+        mSong = song;
+
+        // Init iteration state variables
+        mLastRow = song.endPattern;
+        mCurrentCol = 0;
+
+        // Prepare song info
+        mNumWords =  song.rowLen * song.patternLen * (mLastRow + 1) * 2;
+
+        // Create work buffer (initially cleared)
+        mMixBuf = new Int32Array(mNumWords);
+    };
+
+
+    //--------------------------------------------------------------------------
+    // Public methods
+    //--------------------------------------------------------------------------
+
+    // Generate audio data for a single track
+    this.generate = function () {
+        // Local variables
+        var i, j, p, row, col, n, cp,
+            k, t, rsample, rowStartSample, f;
+
+        // Put performance critical items in local variables
+        var chnBuf = new Int32Array(mNumWords),
+            instr = mSong.songData[mCurrentCol],
+            rowLen = mSong.rowLen,
+            patternLen = mSong.patternLen;
+
+        // Clear effect state
+        var low = 0, band = 0, high;
+        var lsample, filterActive = false;
+
+        // Clear note cache.
+        var noteCache = [];
+
+         // Patterns
+         for (p = 0; p <= mLastRow; ++p) {
+            cp = instr.p[p];
+
+            // Pattern rows
+            for (row = 0; row < patternLen; ++row) {
+                // Execute effect command.
+                var cmdNo = cp ? instr.c[cp - 1].f[row] : 0;
+                if (cmdNo) {
+                    instr.i[cmdNo - 1] = instr.c[cp - 1].f[row + patternLen] || 0;
+
+                    // Clear the note cache since the instrument has changed.
+                    if (cmdNo < 17) {
+                        noteCache = [];
+                    }
+                }
+
+                // Put performance critical instrument properties in local variables
+                var oscLFO = mOscillators[instr.i[16]],
+                    lfoAmt = instr.i[17] / 512,
+                    lfoFreq = (2 ** (instr.i[18] - 9)) / rowLen,
+                    fxLFO = instr.i[19],
+                    fxFilter = instr.i[20],
+                    fxFreq = instr.i[21] * 43.23529 * 3.141592 / 44100,
+                    q = 1 - instr.i[22] / 255,
+                    dist = instr.i[23] * 1e-5,
+                    drive = instr.i[24] / 32,
+                    panAmt = instr.i[25] / 512,
+                    panFreq = 6.283184 * (2 ** (instr.i[26] - 9)) / rowLen,
+                    dlyAmt = instr.i[27] / 255,
+                    dly = instr.i[28] * rowLen & ~1;  // Must be an even number
+
+                // Calculate start sample number for this row in the pattern
+                rowStartSample = (p * patternLen + row) * rowLen;
+
+                // Generate notes for this pattern row
+                for (col = 0; col < 4; ++col) {
+                    n = cp ? instr.c[cp - 1].n[row + col * patternLen] : 0;
+                    if (n) {
+                        if (!noteCache[n]) {
+                            noteCache[n] = createNote(instr, n, rowLen);
+                        }
+
+                        // Copy note from the note cache
+                        var noteBuf = noteCache[n];
+                        for (j = 0, i = rowStartSample * 2; j < noteBuf.length; j++, i += 2) {
+                          chnBuf[i] += noteBuf[j];
+                        }
+                    }
+                }
+
+                // Perform effects for this pattern row
+                for (j = 0; j < rowLen; j++) {
+                    // Dry mono-sample
+                    k = (rowStartSample + j) * 2;
+                    rsample = chnBuf[k];
+
+                    // We only do effects if we have some sound input
+                    if (rsample || filterActive) {
+                        // State variable filter
+                        f = fxFreq;
+                        if (fxLFO) {
+                            f *= oscLFO(lfoFreq * k) * lfoAmt + 0.5;
+                        }
+                        f = 1.5 * Math.sin(f);
+                        low += f * band;
+                        high = q * (rsample - band) - low;
+                        band += f * high;
+                        rsample = fxFilter == 3 ? band : fxFilter == 1 ? high : low;
+
+                        // Distortion
+                        if (dist) {
+                            rsample *= dist;
+                            rsample = rsample < 1 ? rsample > -1 ? osc_sin(rsample*.25) : -1 : 1;
+                            rsample /= dist;
+                        }
+
+                        // Drive
+                        rsample *= drive;
+
+                        // Is the filter active (i.e. still audiable)?
+                        filterActive = rsample * rsample > 1e-5;
+
+                        // Panning
+                        t = Math.sin(panFreq * k) * panAmt + 0.5;
+                        lsample = rsample * (1 - t);
+                        rsample *= t;
+                    } else {
+                        lsample = 0;
+                    }
+
+                    // Delay is always done, since it does not need sound input
+                    if (k >= dly) {
+                        // Left channel = left + right[-p] * t
+                        lsample += chnBuf[k-dly+1] * dlyAmt;
+
+                        // Right channel = right + left[-p] * t
+                        rsample += chnBuf[k-dly] * dlyAmt;
+                    }
+
+                    // Store in stereo channel buffer (needed for the delay effect)
+                    chnBuf[k] = lsample | 0;
+                    chnBuf[k+1] = rsample | 0;
+
+                    // ...and add to stereo mix buffer
+                    mMixBuf[k] += lsample | 0;
+                    mMixBuf[k+1] += rsample | 0;
+                }
+            }
+        }
+
+        // Next iteration. Return progress (1.0 == done!).
+        mCurrentCol++;
+        return mCurrentCol / mSong.numChannels;
+    };
+
+    // Create a AudioBuffer from the generated audio data
+    this.createAudioBuffer = function(context) {
+        var buffer = context.createBuffer(2, mNumWords / 2, 44100);
+        for (var i = 0; i < 2; i ++) {
+            var data = buffer.getChannelData(i);
+            for (var j = i; j < mNumWords; j += 2) {
+                data[j >> 1] = mMixBuf[j] / 65536;
+            }
+        }
+        return buffer;
+    };
+    
+    // Create a WAVE formatted Uint8Array from the generated audio data
+    this.createWave = function() {
+        // Create WAVE header
+        var headerLen = 44;
+        var l1 = headerLen + mNumWords * 2 - 8;
+        var l2 = l1 - 36;
+        var wave = new Uint8Array(headerLen + mNumWords * 2);
+        wave.set(
+            [82,73,70,70,
+             l1 & 255,(l1 >> 8) & 255,(l1 >> 16) & 255,(l1 >> 24) & 255,
+             87,65,86,69,102,109,116,32,16,0,0,0,1,0,2,0,
+             68,172,0,0,16,177,2,0,4,0,16,0,100,97,116,97,
+             l2 & 255,(l2 >> 8) & 255,(l2 >> 16) & 255,(l2 >> 24) & 255]
+        );
+
+        // Append actual wave data
+        for (var i = 0, idx = headerLen; i < mNumWords; ++i) {
+            // Note: We clamp here
+            var y = mMixBuf[i];
+            y = y < -32767 ? -32767 : (y > 32767 ? 32767 : y);
+            wave[idx++] = y & 255;
+            wave[idx++] = (y >> 8) & 255;
+        }
+
+        // Return the WAVE formatted typed array
+        return wave;
+    };
+
+    // Get n samples of wave data at time t [s]. Wave data in range [-2,2].
+    this.getData = function(t, n) {
+        var i = 2 * Math.floor(t * 44100);
+        var d = new Array(n);
+        for (var j = 0; j < 2*n; j += 1) {
+            var k = i + j;
+            d[j] = t > 0 && k < mMixBuf.length ? mMixBuf[k] / 32768 : 0;
+        }
+        return d;
+    };
+};
+
+function rand(min, max) {
+  return Math.floor(Math.random() * (max + 1 - min) + min);
+}function lerp(a, b, x){
+   return a + (b -a ) * x;
+}
+
+function inView3D(o, padding=0){
+  return o.x - view.x + padding + w/2 > 0 &&
+         o.y - view.y + padding + h/2 > 0 &&
+         o.x - view.x - padding - w/2 < r.WIDTH &&
+         o.y - view.y - padding - h/2 < r.HEIGHT
+}
+
+function playSound(buffer, playbackRate = 1, pan = 0, volume = .5, loop = false) {
+
+  var source = window.audioCtx.createBufferSource();
+  var gainNode = window.audioCtx.createGain();
+  var panNode = window.audioCtx.createStereoPanner();
+
+  source.buffer = buffer;
+  source.connect(panNode);
+  panNode.connect(gainNode);
+  gainNode.connect(audioMaster);
+
+  source.playbackRate.value = playbackRate;
+  source.loop = loop;
+  gainNode.gain.value = volume;
+  panNode.pan.value = pan;
+  source.start();
+  return {volume: gainNode, sound: source};
+
+}
+
+const Key = {
+
+  _pressed: {},
+  _released: {},
+
+  LEFT: 37,
+  UP: 38,
+  RIGHT: 39,
+  DOWN: 40,
+  SPACE: 32,
+  ONE: 49,
+  TWO: 50,
+  THREE: 51,
+  FOUR: 52,
+  a: 65,
+  c: 67,
+  w: 87,
+  s: 83,
+  d: 68,
+  z: 90,
+  x: 88,
+  f: 70,
+  p: 80,
+  r: 82,
+  m: 77,
+  h: 72,
+
+  isDown(keyCode) {
+      return this._pressed[keyCode];
+  },
+
+  justReleased(keyCode) {
+      return this._released[keyCode];
+  },
+
+  onKeydown(event) {
+      this._pressed[event.keyCode] = true;
+  },
+
+  onKeyup(event) {
+      this._released[event.keyCode] = true;
+      delete this._pressed[event.keyCode];
+
+  },
+
+  update() {
+      this._released = {};
+  }
+};
+
+function timestamp() {
+  return window.performance && window.performance.now ? window.performance.now() : new Date().getTime();
+}
+
+const Player = {
+
+    position: {
+        x: 0,
+        y: 0,
+    },
+
+    width: 8, height: 8,
+
+    velocity: {
+        x: 0,
+        y: 0
+    },
+
+    accelleration: {
+        x: 0,
+        y: 0
+    }
+
+};
+Player.update = function(dt){
+
+};
+Player.draw = function(dt){
+    onscreen++;
+    r.fillRect(this.position.x-view.x-this.width/2, this.position.y-view.y-this.height/2, this.width, this.height, 15);
+};
+
+//globals r = RetroBuffer, view = {x,y}
+var Sprite = function(x, y, z){
+    this.focalLength = 50;
+    this.graphic = {
+        width: 48,
+        height: 48,
+        x: 0,
+        y: 32,
+        color: 0
+    };
+    this.start = {
+        x: x, y: y, z: z
+    };
+    this.transform = {
+        x: x,
+        y: y,
+        z: z,
+        angle: 0,
+        scale: this.focalLength / (this.focalLength + z)
+    };
+    this.screenTransform = {
+        x: x,
+        y: y,
+        width: 48,
+        height: 48
+
+    };
+    
+    return this;
+};
+Sprite.prototype.draw = function(){
+
+    this.screenTransform.x = (w/2) + (this.transform.x - view.x) * this.transform.scale;
+    this.screenTransform.y = (h/2) + (this.transform.y - view.y) * this.transform.scale;
+    //console.log(h, w);
+    this.screenTransform.width = this.graphic.width * this.transform.scale;
+    this.screenTransform.height = this.graphic.height * this.transform.scale;
+    var { x, y, width, height} = this.screenTransform;
+
+   if(inView3D(this.transform, w/2*1/this.transform.scale) ){
+        r.renderSource = r.PAGE_3;
+        r.palOffset = this.graphic.color;
+        r.setPen(0,121, r.dither[16 - Math.floor(this.transform.scale * 16 )]);
+        r.sspr(this.graphic.x, this.graphic.y, this.graphic.width, this.graphic.height,
+        x-width/2,
+        y-height/2,
+        width, height);
+        r.palOffset = 0;
+        onscreen++;
+    }
+
+};
+
+Sprite.prototype.update = function(dt){
+//this.transform.z = this.start.z + Math.sin(t/100) * 100;
+//this.transform.y = this.start.y + Math.cos(t/100) * 100;
+//this.transform.x + this.start.x + Math.sin(t/100) * 100;
+//this.focalLength = 100 + Math.sin(t/100) * 100;
+//this.transform.scale = this.focalLength / (this.focalLength + this.transform.z)
+//this.transform.y += dt/1000;
+};
+
+// This music has been exported by SoundBox. You can use it with
+    // http://sb.bitsnbites.eu/player-small.js in your own product.
+
+    // See http://sb.bitsnbites.eu/demo.html for an example of how to
+    // use it in a demo.
+
+    // Song data
+    var cellComplete = {
+      songData: [
+        { // Instrument 0
+          i: [
+          2, // OSC1_WAVEFORM
+          100, // OSC1_VOL
+          128, // OSC1_SEMI
+          0, // OSC1_XENV
+          3, // OSC2_WAVEFORM
+          201, // OSC2_VOL
+          128, // OSC2_SEMI
+          0, // OSC2_DETUNE
+          0, // OSC2_XENV
+          0, // NOISE_VOL
+          5, // ENV_ATTACK
+          6, // ENV_SUSTAIN
+          58, // ENV_RELEASE
+          0, // ENV_EXP_DECAY
+          0, // ARP_CHORD
+          0, // ARP_SPEED
+          0, // LFO_WAVEFORM
+          195, // LFO_AMT
+          6, // LFO_FREQ
+          1, // LFO_FX_FREQ
+          2, // FX_FILTER
+          135, // FX_FREQ
+          0, // FX_RESONANCE
+          0, // FX_DIST
+          32, // FX_DRIVE
+          147, // FX_PAN_AMT
+          6, // FX_PAN_FREQ
+          28, // FX_DELAY_AMT
+          6 // FX_DELAY_TIME
+          ],
+          // Patterns
+          p: [1],
+          // Columns
+          c: [
+            {n: [147,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,152,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,154],
+             f: []}
+          ]
+        },
+      ],
+      rowLen: 5088,   // In sample lengths
+      patternLen: 32,  // Rows per pattern
+      endPattern: 0,  // End pattern
+      numChannels: 1  // Number of channels
+    };
+
+//stats = new Stats();
+//stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+//import Stats from './core/Stats.js';
+
+gameScale = 1;
+gameState = 1;
+sounds = [];
+mapToggle = false;
+onscreen = 0;
+
+last = timestamp();
+now = 0,
+    dt = 0;
+
+w = window.innerWidth/5| 0;
+h = window.innerHeight/5 | 0;
+
+view = {x: 0, y: 0, z: 1};
+
+tileWidth = tileHeight = 8;
+player = Player;
+
+
+t = 0;
+
+sprites = [];
+//sprites.push(new Sprite(100,100));
+
+document.body.style = "margin:0; background-color:black; overflow:hidden";
+
+const atlasURL = 'data:image/webp;base64,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';
+atlasImage = new Image();
+atlasImage.src = atlasURL;
+
+atlasImage.onload = function() {
+    let c = document.createElement('canvas');
+    c.width = atlasImage.width;
+    c.height = atlasImage.height;
+    let ctx = c.getContext('2d');
+    ctx.drawImage(this, 0, 0);
+    atlas = new Uint32Array(ctx.getImageData(0, 0, this.width, this.height).data.buffer);
+    window.r = new RetroBuffer(w, h, atlas);
+    r.atlasToRam(atlas, this.width, this.height, r.PAGE_3);
+    gameInit();
+};
+function gameInit() {
+    window.playSound = playSound;
+    
+    gamebox = document.getElementById("game");
+    gamebox.appendChild(r.c);
+    r.c.style = `height: 100%; width: 100%;`;
+        //    gamebox.appendChild(r.debugCanvas);
+        //r.debugCanvas.style = 'margin: 30px'
+    initAudio();
+    initGameData();
+    gameloop();
+}
+
+//document.body.appendChild( stats.dom );
+
+
+
+function initAudio() {
+    audioCtx = new AudioContext;
+    audioMaster = audioCtx.createGain();
+    compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.setValueAtTime(-60, audioCtx.currentTime);
+    compressor.knee.setValueAtTime(40, audioCtx.currentTime);
+    compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
+    compressor.attack.setValueAtTime(0, audioCtx.currentTime);
+    compressor.release.setValueAtTime(0.25, audioCtx.currentTime);
+
+    audioMaster.connect(compressor);
+    compressor.connect(audioCtx.destination);
+
+    sndData = [
+        { name: 'cellComplete', data: cellComplete },
+    ];
+    totalSounds = sndData.length;
+    soundsReady = 0;
+    sndData.forEach(function(o) {
+        var sndGenerator = new MusicPlayer();
+        sndGenerator.init(o.data);
+        var done = false;
+        setInterval(function() {
+            if (done) {
+                return;
+            }
+            done = sndGenerator.generate() == 1;
+            soundsReady += done;
+            if (done) {
+                let wave = sndGenerator.createWave().buffer;
+                audioCtx.decodeAudioData(wave, function(buffer) {
+                    sounds[o.name] = buffer;
+                    //soundsReady++;
+                });
+            }
+        }, 0);
+    });
+}
+
+function initGameData() {
+    r.renderTarget = r.mapSource;
+    player.position = {x: 0, y: 0};
+    r.pset(0,0,1);
+    r.fillRect(4,4,3,3,1);
+    for(let i = 0; i < 400; i++){
+        r.fillRect(rand(0,w), rand(0, h), rand(3, 12), rand(3,12), 1);
+    }
+    // for(let i = 0; i < 300; i++){
+    //     ball = new Sprite(rand(0, 2000), rand(0, 2000), 0)
+    //     //ball.graphic.color = 156-121;
+    //     //ball.transform.scale = Math.random()*0.75 + 0.25;
+    //     sprites.push(ball);
+    // }
+    for(let i = 0; i < 90; i++){
+        var x = rand(-1000, 1000),
+            y = rand(-1000, 1000),
+            h = rand(2, 10);
+            depth = rand(0, 50);
+        for(let j = 0; j <= h; j++) {
+            ball = new Sprite(x,y,depth + 40 * j);
+            //ball.graphic.color = choice([153-2, 122, 245])
+            sprites.push(ball  ); 
+        }
+    }
+
+   
+
+    
+
+    sprites.sort(function(a,b){return b.transform.z - a.transform.z});
+    // for(let i = 0; i <= map.width * map.height; i++){
+    //     map.data[i] = Math.round(Math.random()*3)
+    // }
+}
+
+
+function updateGame(dt) {
+    t += dt;
+    if(Key.isDown(Key.d) || Key.isDown(Key.RIGHT)){
+        //view.x+=1
+        player.position.x +=1;
+    }
+    if(Key.isDown(Key.a) || Key.isDown(Key.LEFT)){
+        player.position.x -=1;
+    }
+    if(Key.isDown(Key.w) || Key.isDown(Key.UP)){
+        player.position.y -=1;
+    }
+    if(Key.isDown(Key.s) || Key.isDown(Key.DOWN)){
+        player.position.y +=1;
+    }
+    if(Key.justReleased(Key.z)){
+        playSound(sounds.cellComplete);
+        mapToggle = !mapToggle;
+    }
+    player.update(dt);
+    sprites.forEach(e=>e.update(dt));
+    view.x = lerp(view.x, Player.position.x-w/2, 0.05);
+    view.y = lerp(view.y, Player.position.y-h/2, 0.05);
+}
+
+function drawGame() {
+    r.clear(0, r.SCREEN);
+    r.renderTarget = r.SCREEN;
+   
+    //r.fillCircle(w/2, h/2, 20, 5);
+    sprites.forEach(e=>e.draw());
+    //r.drawMap();
+    Player.draw();
+    console.log(`Sprite Count: ${onscreen}`);
+    onscreen = 0;
+  //  console.log(`x: ${view.x}} y: ${view.y}`)
+    r.render();
+    //r.debugRender();
+}
+
+
+//initialize  event listeners--------------------------
+window.addEventListener('keyup', function(event) {
+    Key.onKeyup(event);
+}, false);
+window.addEventListener('keydown', function(event) {
+    Key.onKeydown(event);
+}, false);
+window.addEventListener('blur', function(event) {
+    paused = true;
+}, false);
+window.addEventListener('focus', function(event) {
+    paused = false;
+}, false);
+
+function gameloop() {
+    {
+        //stats.begin();
+        now = timestamp();
+        dt = Math.min(1, (now - last) / 1000);
+        switch (gameState) {
+            case 0:
+                break;
+            case 1: //game
+                updateGame(dt);
+                drawGame(dt);
+                break;
+            case 2:
+                titlescreen(dt);
+                break;
+        }
+        Key.update();
+        //stats.end();
+        requestAnimationFrame(gameloop);
+    }
+}
+
+})();
+</script>
