@@ -23,8 +23,8 @@ last = timestamp();
 now = 0,
     dt = 0;
 
-w = window.innerWidth/5| 0;
-h = window.innerHeight/5 | 0;
+w = window.innerWidth/4| 0;
+h = window.innerHeight/4 | 0;
 
 view = {x: 0, y: 0, z: 1}
 
@@ -39,7 +39,7 @@ sprites = [];
 
 document.body.style = "margin:0; background-color:black; overflow:hidden";
 
-const atlasURL = 'DATAURL:src/img/palette-aurora-256-with-iso-tiles.png';
+const atlasURL = 'DATAURL:src/img/atlas-redball.png';
 atlasImage = new Image();
 atlasImage.src = atlasURL;
 
@@ -60,8 +60,8 @@ function gameInit() {
     
     gamebox = document.getElementById("game");
     gamebox.appendChild(r.c);
-    r.c.style = `height: 50%; width: 50%; border: 1px solid red;`;
-            //gamebox.appendChild(r.debugCanvas);
+    r.c.style = `height: 100%; width: 100%;`
+        //    gamebox.appendChild(r.debugCanvas);
         //r.debugCanvas.style = 'margin: 30px'
     initAudio();
     initGameData();
@@ -112,14 +112,39 @@ function initAudio() {
 }
 
 function initGameData() {
-    player.position = {x: 0, y: 0};
     r.renderTarget = r.mapSource;
-    for(let i = 0; i < w; i++) {
-        for(let j = 0; j < h; j++) {
-            r.pset(i, j, Math.round(Math.random()*47));
+    player.position = {x: 0, y: 0};
+    r.pset(0,0,1);
+    r.fillRect(4,4,3,3,1)
+    for(let i = 0; i < 400; i++){
+        r.fillRect(rand(0,w), rand(0, h), rand(3, 12), rand(3,12), 1)
+    }
+    // for(let i = 0; i < 300; i++){
+    //     ball = new Sprite(rand(0, 2000), rand(0, 2000), 0)
+    //     //ball.graphic.color = 156-121;
+    //     //ball.transform.scale = Math.random()*0.75 + 0.25;
+    //     sprites.push(ball);
+    // }
+    for(let i = 0; i < 90; i++){
+        var x = rand(-1000, 1000),
+            y = rand(-1000, 1000),
+            h = rand(2, 10);
+            depth = rand(0, 50);
+        for(let j = 0; j <= h; j++) {
+            ball = new Sprite(x,y,depth + 40 * j)
+            //ball.graphic.color = choice([153-2, 122, 245])
+            sprites.push(ball  ) 
         }
     }
+
+   
+
     
+
+    sprites.sort(function(a,b){return b.transform.z - a.transform.z})
+    // for(let i = 0; i <= map.width * map.height; i++){
+    //     map.data[i] = Math.round(Math.random()*3)
+    // }
 }
 
 
@@ -144,24 +169,22 @@ function updateGame(dt) {
     }
     player.update(dt);
     sprites.forEach(e=>e.update(dt))
-    view.x = lerp(view.x, Player.drawPosition.x-w/2, 0.05);
-    view.y = lerp(view.y, Player.drawPosition.y-h/2, 0.05);
+    view.x = lerp(view.x, Player.position.x-w/2, 0.05);
+    view.y = lerp(view.y, Player.position.y-h/2, 0.05);
 }
 
 function drawGame() {
     r.clear(0, r.SCREEN);
     r.renderTarget = r.SCREEN;
    
-    r.drawIsoMap();
-
+    //r.fillCircle(w/2, h/2, 20, 5);
+    sprites.forEach(e=>e.draw())
+    //r.drawMap();
     Player.draw();
-
-    // r.renderSource = r.PAGE_3;
-    // r.sspr(0, 0, w, h, 0, 0, w, h);
-
-    //r.drawTile(1, 10,10);
+    console.log(`Sprite Count: ${onscreen}`)
     onscreen = 0;
-    r.render()
+  //  console.log(`x: ${view.x}} y: ${view.y}`)
+    r.render();
     //r.debugRender();
 }
 

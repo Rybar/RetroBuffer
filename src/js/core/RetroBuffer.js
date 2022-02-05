@@ -1,5 +1,5 @@
 //todo: debug canvas. a 1 to 1 view of all pages
-import { inView } from '/js/core/utils.js'
+//import { inView } from '/js/core/utils.js'
 
 var RetroBuffer = function(width, height, atlas, pages=5) {
 
@@ -27,10 +27,10 @@ var RetroBuffer = function(width, height, atlas, pages=5) {
         this.stencilOffset = 0;
 
         this.spriteTileset = {
-            width: 32,
+            width: 47,
             height: 1,
             tileSource: this.PAGE_3,
-            tileOrigin: { x: 0, y: 24 },
+            tileOrigin: { x: 0, y: 16 },
             tileSize: { x: 8, y: 8 },
         };
 
@@ -393,6 +393,7 @@ RetroBuffer.prototype.sspr = function(sx = 0, sy = 0, sw = 16, sh = 16, x = 0, y
 }
 RetroBuffer.prototype.drawTile = function drawTile(tile, x, y, tileset=this.spriteTileset, scale=1, flipx = false, flipy = false) {
     //console.log(tileset);
+    tile > 0 ? tile -= 1 : tile = 0;
     let
         tileX = tile % tileset.width,
         tileY = Math.floor(tile / tileset.width),
@@ -416,6 +417,37 @@ RetroBuffer.prototype.drawMap = function() {
         for(let j = top; j < bottom; j++){
             
             this.drawTile(this.ram[this.mapSource + i * this.WIDTH + j], i*tileWidth-view.x, j*tileHeight-view.y)
+        }
+    }
+}
+
+RetroBuffer.prototype.drawIsoMap = function() {
+/*
+
+*/
+
+    let tileWidth = this.spriteTileset.tileSize.x;
+    let tileHeight = this.spriteTileset.tileSize.y;
+    let left = Math.floor(view.x/tileWidth);
+    let right = left + Math.floor(w/tileWidth) + 1;
+    let top = Math.floor(view.y/tileHeight);
+    let bottom = top + Math.floor(h/tileHeight) + 1;
+
+    //this optimization doesn't play nice at the maps edges for scrolling camera past bounds.
+    //hacky solution is to cap camera world less 1 screen at all sides.
+    
+    for(let i = left; i < right; i++){
+        for(let j = top; j < bottom; j++){
+            /*
+            screen.x = (map.x - map.y) * TILE_WIDTH_HALF;
+            screen.y = (map.x + map.y) * TILE_HEIGHT_HALF;
+            */
+            let x = i;
+            let y = j;
+
+            let screenX = ((x - y) * 4) - view.x;
+            let screenY = ((x + y) * 2) - view.y;
+            this.drawTile(this.ram[this.mapSource + i * this.WIDTH + j], screenX, screenY)
         }
     }
 }
