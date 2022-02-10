@@ -14,6 +14,7 @@ var RetroBuffer = function(width, height, atlas, pages=5) {
         this.PAGE_2 = this.PAGESIZE * 2;
         this.PAGE_3 = this.PAGESIZE * 3;
         this.PAGE_4 = this.PAGESIZE * 4;
+        this.PAGE_5 = this.PAGESIZE * 5;
 
         //relative drawing position and pencolor, for drawing functions that require it.
         this.cursorX = 0;
@@ -90,9 +91,6 @@ var RetroBuffer = function(width, height, atlas, pages=5) {
             0b1000000000100000,
             0b1000000000000000,
             0b0000000000000000,
-            0b1111100110011111,
-            0b0000011001100000,
-            0b1111100010001000,
         ];
 
         this.pat = 0b1111111111111111;
@@ -423,39 +421,7 @@ RetroBuffer.prototype.drawMap = function() {
     }
 }
 
-RetroBuffer.prototype.drawIsoMap = function() {
-/*
 
-*/
-
-    let tileWidth = this.spriteTileset.tileSize.x;
-    let tileHeight = this.spriteTileset.tileSize.y;
-
-
-    // let left = Math.floor(view.x/tileWidth);
-    // let right = left + Math.floor(w/tileWidth) + 1;
-    // let top = Math.floor(view.y/tileHeight);
-    // let bottom = top + Math.floor(h/tileHeight) + 1;
-
-    //this optimization doesn't play nice at the maps edges for scrolling camera past bounds.
-    //hacky solution is to cap camera world less 1 screen at all sides.
-    
-    for(let i = 0; i < w; i++){
-        for(let j = 0; j < h; j++){
-            onScreen++;
-            /*
-            screen.x = (map.x - map.y) * TILE_WIDTH_HALF;
-            screen.y = (map.x + map.y) * TILE_HEIGHT_HALF;
-            */
-            let x = i;
-            let y = j;
-
-            let screenX = ((x - y) * 4) - view.x;
-            let screenY = ((x + y) * 2) - view.y;
-            this.drawTile(this.ram[this.mapSource + i * this.WIDTH + j], screenX, screenY)
-        }
-    }
-}
 
 RetroBuffer.prototype.triangle = function triangle(p1, p2, p3, color) {
     this.line(p1.x, p1.y, p2.x, p2.y, color);

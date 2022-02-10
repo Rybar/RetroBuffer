@@ -17,14 +17,14 @@ gameScale = 1;
 gameState = 1;
 sounds = [];
 mapToggle = false;
-onscreen = 0;
+onScreen = 0;
 
 last = timestamp();
 now = 0,
     dt = 0;
 
-w = window.innerWidth/4| 0;
-h = window.innerHeight/4 | 0;
+w = window.innerWidth/3| 0;
+h = window.innerHeight/3 | 0;
 
 view = {x: 0, y: 0, z: 1}
 
@@ -50,7 +50,7 @@ atlasImage.onload = function() {
     let ctx = c.getContext('2d');
     ctx.drawImage(this, 0, 0);
     atlas = new Uint32Array(ctx.getImageData(0, 0, this.width, this.height).data.buffer);
-    window.r = new RetroBuffer(w, h, atlas);
+    window.r = new RetroBuffer(w, h, atlas, 10);
     r.atlasToRam(atlas, this.width, this.height, r.PAGE_3)
     gameInit();
 };
@@ -116,7 +116,13 @@ function initGameData() {
     r.renderTarget = r.mapSource;
     for(let i = 0; i < w; i++) {
         for(let j = 0; j < h; j++) {
-            r.pset(i, j, Math.round(Math.random()*3));
+            r.pset(i, j, Math.round(Math.random()*20));
+        }
+    }
+    r.renderTarget = r.PAGE_5;
+    for(let i = 0; i < w; i++) {
+        for(let j = 0; j < h; j++) {
+            r.pset(i, j, Math.round(Math.random()*255));
         }
     }
     
@@ -152,12 +158,12 @@ function drawGame() {
     r.clear(0, r.SCREEN);
     r.renderTarget = r.SCREEN;
    
-   // r.drawIsoMap();
+    drawIsoMap();
 
     Player.draw();
 
     r.renderSource = r.PAGE_3;
-    r.sspr(0, 0, w, h, 0, 0, w, h);
+    // r.sspr(0, 0, w, h, 0, 0, w, h);
 
     //r.drawTile(1, 10,10);
     onscreen = 0;
@@ -171,6 +177,62 @@ function drawGame() {
 function resetGame() {
     window.t = 0;
 }
+
+function drawIsoMap() {
+    /*
+    
+    */
+    
+        let tileWidth = r.spriteTileset.tileSize.x;
+        let tileHeight = r.spriteTileset.tileSize.y;
+
+        let playerXinTiles = Math.floor(player.position.x/tileWidth);
+        let playerYinTiles = Math.floor(player.position.y/tileHeight);
+    
+        let padding = 30;
+    
+        let left = playerXinTiles - padding;
+        let right = playerXinTiles + padding;
+        let top = playerYinTiles - padding;
+        let bottom = playerYinTiles + padding;
+    
+        //this optimization doesn't play nice at the maps edges for scrolling camera past bounds.
+        r.cursorColor2 = 0;
+        for(let i = left; i < right; i++){
+            for(let j = top; j < bottom; j++){
+                onScreen++;
+                /*
+                screen.x = (map.x - map.y) * TILE_WIDTH_HALF;
+                screen.y = (map.x + map.y) * TILE_HEIGHT_HALF;
+                */
+                let x = i;
+                let y = j;
+    
+                let screenX = ((x - y) * 4) - view.x;
+                let screenY = ((x + y) * 2) - view.y;
+               //r.palOffset = r.ram[r.PAGE_5 + i * r.WIDTH + j];
+                let distance = getDistance(x,y, playerXinTiles, playerYinTiles);
+                let maxDistance = getDistance(padding, padding, 0, 0);
+                //console.log(distance)
+                let opacity = Math.pow(distance, 6)/Math.pow(maxDistance, 5)
+                r.pal[0] = 0;
+                r.pat = r.dither [ Math.floor(  opacity * 15  )  ] //+ Math.floor(Math.random()*16);
+                r.drawTile(r.ram[r.mapSource + i * r.WIDTH + j], screenX, screenY)
+                // r.drawTile(r.ram[r.mapSource + i * r.WIDTH + j], screenX, screenY-4)
+                // r.drawTile(r.ram[r.mapSource + i * r.WIDTH + j], screenX, screenY-8)
+                r.palOffset = 0;
+                
+                r.pat = r.dither[0];
+            }
+        }
+    }
+
+    function getDistance(x1, y1, x2, y2){
+        let y = x2 - x1;
+        let x = y2 - y1;
+        
+        return Math.sqrt(x * x + y * y);
+    }
 
 
 //initialize  event listeners--------------------------
