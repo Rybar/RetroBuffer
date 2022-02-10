@@ -23,8 +23,8 @@ last = timestamp();
 now = 0,
     dt = 0;
 
-w = window.innerWidth/5| 0;
-h = window.innerHeight/5 | 0;
+w = window.innerWidth/4| 0;
+h = window.innerHeight/4 | 0;
 
 view = {x: 0, y: 0, z: 1}
 
@@ -60,7 +60,7 @@ function gameInit() {
     
     gamebox = document.getElementById("game");
     gamebox.appendChild(r.c);
-    r.c.style = `height: 50%; width: 50%; border: 1px solid red;`;
+    r.c.style = `height: 100%; width: 100%; border: 1px solid red;`;
             //gamebox.appendChild(r.debugCanvas);
         //r.debugCanvas.style = 'margin: 30px'
     initAudio();
@@ -112,11 +112,11 @@ function initAudio() {
 }
 
 function initGameData() {
-    player.position = {x: 0, y: 0};
+    player.position = {x: w/2, y: h/2};
     r.renderTarget = r.mapSource;
     for(let i = 0; i < w; i++) {
         for(let j = 0; j < h; j++) {
-            r.pset(i, j, Math.round(Math.random()*47));
+            r.pset(i, j, Math.round(Math.random()*3));
         }
     }
     
@@ -152,17 +152,20 @@ function drawGame() {
     r.clear(0, r.SCREEN);
     r.renderTarget = r.SCREEN;
    
-    r.drawIsoMap();
+   // r.drawIsoMap();
 
     Player.draw();
 
-    // r.renderSource = r.PAGE_3;
-    // r.sspr(0, 0, w, h, 0, 0, w, h);
+    r.renderSource = r.PAGE_3;
+    r.sspr(0, 0, w, h, 0, 0, w, h);
 
     //r.drawTile(1, 10,10);
     onscreen = 0;
     r.render()
     //r.debugRender();
+    for(let i = 0; i < 64; i++) {
+       // r.drawTile(i, 50, 48);
+    }
 }
 
 function resetGame() {

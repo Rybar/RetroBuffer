@@ -27,8 +27,8 @@ var RetroBuffer = function(width, height, atlas, pages=5) {
         this.stencilOffset = 0;
 
         this.spriteTileset = {
-            width: 47,
-            height: 1,
+            width: 30,
+            height: 4,
             tileSource: this.PAGE_3,
             tileOrigin: { x: 0, y: 16 },
             tileSize: { x: 8, y: 8 },
@@ -400,6 +400,8 @@ RetroBuffer.prototype.drawTile = function drawTile(tile, x, y, tileset=this.spri
         drawX = tileset.tileOrigin.x + (tileX * tileset.tileSize.x),
         drawY = tileset.tileOrigin.y + (tileY * tileset.tileSize.y),
         previousRenderSource = this.renderSource;
+       // console.log(`drawing tile ${tile} from ${drawX}, ${drawY}`);
+
     this.renderSource = tileset.tileSource;
     this.sspr(drawX, drawY, tileset.tileSize.x, tileset.tileSize.y, x, y, tileset.tileSize.x*scale, tileset.tileSize.y*scale, flipx, flipy);
     this.renderSource = previousRenderSource;
@@ -428,16 +430,19 @@ RetroBuffer.prototype.drawIsoMap = function() {
 
     let tileWidth = this.spriteTileset.tileSize.x;
     let tileHeight = this.spriteTileset.tileSize.y;
-    let left = Math.floor(view.x/tileWidth);
-    let right = left + Math.floor(w/tileWidth) + 1;
-    let top = Math.floor(view.y/tileHeight);
-    let bottom = top + Math.floor(h/tileHeight) + 1;
+
+
+    // let left = Math.floor(view.x/tileWidth);
+    // let right = left + Math.floor(w/tileWidth) + 1;
+    // let top = Math.floor(view.y/tileHeight);
+    // let bottom = top + Math.floor(h/tileHeight) + 1;
 
     //this optimization doesn't play nice at the maps edges for scrolling camera past bounds.
     //hacky solution is to cap camera world less 1 screen at all sides.
     
-    for(let i = left; i < right; i++){
-        for(let j = top; j < bottom; j++){
+    for(let i = 0; i < w; i++){
+        for(let j = 0; j < h; j++){
+            onScreen++;
             /*
             screen.x = (map.x - map.y) * TILE_WIDTH_HALF;
             screen.y = (map.x + map.y) * TILE_HEIGHT_HALF;
