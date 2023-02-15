@@ -1,6 +1,7 @@
 //todo: debug canvas. a 1 to 1 view of all pages
 //import { inView } from '/js/core/utils.js'
 
+//add config argument to constructor for passing in sprite and font tileset parameters
 var RetroBuffer = function(width, height, atlas, pages=5) {
 
         this.WIDTH = width;

@@ -1,17 +1,5 @@
 import RetroBuffer from './core/RetroBuffer.js';
-import MusicPlayer from './musicplayer.js';
-import { playSound, Key, inView, timestamp, lerp, clamp, rand, choice } from './core/utils.js';
-import Player from './player.js'
-import Sprite from './sprite.js'
-//import Demos from './Demos.js';
-//demos = new Demos();
 
-//sound assets
-import cellComplete from './sounds/cellComplete.js';
-
-//stats = new Stats();
-//stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
-//import Stats from './core/Stats.js';
 
 gameScale = 1;
 gameState = 1;
@@ -30,7 +18,6 @@ view = {x: 0, y: 0, z: 1}
 
 tileWidth = tileHeight = 8;
 player = Player;
-
 
 t = 0;
 

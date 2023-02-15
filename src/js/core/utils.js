@@ -16,13 +16,6 @@ export function inView(o, padding=0){
          o.y - view.y - padding < r.HEIGHT
 }
 
-export function inView3D(o, padding=0){
-  return o.x - view.x + padding + w/2 > 0 &&
-         o.y - view.y + padding + h/2 > 0 &&
-         o.x - view.x - padding - w/2 < r.WIDTH &&
-         o.y - view.y - padding - h/2 < r.HEIGHT
-}
-
 export function playSound(buffer, playbackRate = 1, pan = 0, volume = .5, loop = false) {
 
   var source = window.audioCtx.createBufferSource();

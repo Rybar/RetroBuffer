@@ -1,36 +1,59 @@
-Finish refactoring demo bits out into Demos.js
-Moar Demos
-    2d camera
-    tilemap drawing
-    tilemap with color map
-    tile-based lighting
-    particles
-    palette-based additive/subtractive colors
-    spritesheet animation
-    -no added functions, simple how-to with time+modulus
-Palette todo:
-    tileset development
-    8-row brightness map
-    ramp presets
-    font:
-        more special characters and numbers
+Bring in from other game forks of retrobuffer:
+    sprite-based font rendering
+    utility functions
+    3D-specific functions
 
+Pick a standard palette and pixel font and include them in the system sprite atlas
+System sprite atlas should include:
+    palette. 64 colors
+    upper and lowercase sprite font
+    8x8 basic tileset
 
-Game Demos:
-    asteroids
-    dual-stick
-    dual-stick with tilemap
-    greeble port
-    zelda-like
-    port of tiny platformer
-    port of tiny fishing player
-    profit
+Refactor as factory function, remove 'this'. 
 
-roadmap to larger game
-    inventory mechanic
-    UI - boxes, scroll-boxes, mouse interaction
-    torus shaped planets
+create drawing stack format
+serialize stack of drawing commands
+    each command contains:
+    command
+    rendertarget (memory location of upper-left corner of buffer page)
+    x0
+    y0
+    r or width or x1
+    height or x2
     
+
+
+Remove soundbox and JS13K boilerplate stuff from repo, keep this retrobuffer + simple drawing examples only
+
+Documentation!
+jsdoc compatible function comments
+
+Use guide
+drawing API
+Use cases for other 'pages'
+    -game data
+    -special effects
+    -compositing
+    -procedural generation
+
+
+Minimum Viable Game repo
+-retrobuffer as submodule
+-soundbox/new synth integration
+-game loop with states
+
+Game extends retrobuffer
+remove 'r' class reference, its all inside
+
+OR
+
+game is composition of input, sound, retrobuffer, behavior, utils modules
+
+
+
+
+
+
 
 
 
